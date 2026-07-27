@@ -151,11 +151,12 @@ class DriverViewSet(viewsets.ModelViewSet):
 class MaintenanceRecordViewSet(viewsets.ModelViewSet):
     """ViewSet for managing maintenance records."""
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = MaintenanceRecordSerializer
     
     def get_queryset(self):
         return MaintenanceRecord.objects.filter(
             vehicle__organization=self.request.user.current_organization
-        ).select_related("vehicle").order_by("-scheduled_date")
+        ).select_related("vehicle").order_by("-created_at")
     
     def perform_create(self, serializer):
         # Automatically set organization from vehicle
@@ -198,7 +199,7 @@ class MaintenanceRecordViewSet(viewsets.ModelViewSet):
             scheduled_date__gte=timezone.now().date()
         ).order_by('scheduled_date')[:10]
         
-        serializer = self.get_serializer(upcoming, many=True)
+        serializer = MaintenanceRecordSerializer(upcoming, many=True)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
@@ -210,7 +211,7 @@ class MaintenanceRecordViewSet(viewsets.ModelViewSet):
             scheduled_date__lt=timezone.now().date()
         ).order_by('scheduled_date')
         
-        serializer = self.get_serializer(overdue, many=True)
+        serializer = MaintenanceRecordSerializer(overdue, many=True)
         return Response(serializer.data)
 
 
