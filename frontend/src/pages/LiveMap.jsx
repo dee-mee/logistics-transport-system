@@ -325,7 +325,7 @@ const LiveMap = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#F59E0B' }}></div>
-                  <div className="text-sm text-gray-600">Maintenance</span>
+                  <span className="text-sm text-gray-600">Maintenance</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
