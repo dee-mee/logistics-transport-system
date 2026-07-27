@@ -28,8 +28,9 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def default_layout(self, request):
-        """Get default dashboard layout for new organizations."""
+        """Get enhanced default dashboard layout for new organizations."""
         default_widgets = [
+            # Top row - Key metrics
             {
                 'widget_type': 'metric_card',
                 'title': 'Total Vehicles',
@@ -37,7 +38,7 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'data_query': {'metric': 'total_vehicles'},
                 'position_x': 0,
                 'position_y': 0,
-                'width': 3,
+                'width': 2,
                 'height': 2
             },
             {
@@ -45,9 +46,9 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'title': 'Active Trips',
                 'data_source': '/api/dashboard/metrics/',
                 'data_query': {'metric': 'active_trips'},
-                'position_x': 3,
+                'position_x': 2,
                 'position_y': 0,
-                'width': 3,
+                'width': 2,
                 'height': 2
             },
             {
@@ -55,44 +56,76 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'title': 'Pending Shipments',
                 'data_source': '/api/dashboard/metrics/',
                 'data_query': {'metric': 'pending_shipments'},
-                'position_x': 6,
+                'position_x': 4,
                 'position_y': 0,
-                'width': 3,
+                'width': 2,
                 'height': 2
             },
             {
                 'widget_type': 'metric_card',
-                'title': 'Fuel Cost Today',
+                'title': 'Available Drivers',
                 'data_source': '/api/dashboard/metrics/',
-                'data_query': {'metric': 'daily_fuel_cost'},
-                'position_x': 9,
+                'data_query': {'metric': 'active_drivers'},
+                'position_x': 6,
                 'position_y': 0,
-                'width': 3,
+                'width': 2,
                 'height': 2
             },
+            {
+                'widget_type': 'metric_card',
+                'title': 'Today\'s Revenue',
+                'data_source': '/api/dashboard/metrics/',
+                'data_query': {'metric': 'total_revenue'},
+                'position_x': 8,
+                'position_y': 0,
+                'width': 2,
+                'height': 2
+            },
+            {
+                'widget_type': 'metric_card',
+                'title': 'On-Time Rate',
+                'data_source': '/api/dashboard/metrics/',
+                'data_query': {'metric': 'on_time_delivery_rate'},
+                'position_x': 10,
+                'position_y': 0,
+                'width': 2,
+                'height': 2
+            },
+            # Second row - Live map and vehicle status
             {
                 'widget_type': 'live_map',
                 'title': 'Live Fleet Map',
                 'data_source': '/api/tracking/location-pings/live_map/',
                 'position_x': 0,
                 'position_y': 2,
-                'width': 6,
+                'width': 4,
                 'height': 4
             },
             {
                 'widget_type': 'chart',
                 'chart_type': 'pie',
-                'title': 'Vehicle Status',
+                'title': 'Vehicle Status Distribution',
                 'data_source': '/api/dashboard/vehicle_status/',
-                'position_x': 6,
+                'position_x': 4,
                 'position_y': 2,
-                'width': 6,
+                'width': 4,
                 'height': 4
             },
             {
                 'widget_type': 'chart',
+                'chart_type': 'pie',
+                'title': 'Shipment Status',
+                'data_source': '/api/dashboard/shipment_status/',
+                'position_x': 8,
+                'position_y': 2,
+                'width': 4,
+                'height': 4
+            },
+            # Third row - Trends and performance
+            {
+                'widget_type': 'chart',
                 'chart_type': 'line',
-                'title': 'Shipments Trend',
+                'title': 'Shipments Trend (30 Days)',
                 'data_source': '/api/dashboard/shipment_trend/',
                 'position_x': 0,
                 'position_y': 6,
@@ -100,11 +133,51 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'height': 4
             },
             {
+                'widget_type': 'chart',
+                'chart_type': 'bar',
+                'title': 'Weekly Performance',
+                'data_source': '/api/dashboard/weekly_performance/',
+                'position_x': 6,
+                'position_y': 6,
+                'width': 6,
+                'height': 4
+            },
+            # Fourth row - Activity feed and alerts
+            {
                 'widget_type': 'activity_feed',
                 'title': 'Recent Activity',
                 'data_source': '/api/dashboard/activity_feed/',
+                'position_x': 0,
+                'position_y': 10,
+                'width': 8,
+                'height': 4
+            },
+            {
+                'widget_type': 'alerts',
+                'title': 'Active Alerts',
+                'data_source': '/api/dashboard/alerts/',
+                'position_x': 8,
+                'position_y': 10,
+                'width': 4,
+                'height': 4
+            },
+            # Fifth row - Fuel and maintenance
+            {
+                'widget_type': 'chart',
+                'chart_type': 'line',
+                'title': 'Fuel Consumption Trend',
+                'data_source': '/api/dashboard/fuel_trend/',
+                'position_x': 0,
+                'position_y': 14,
+                'width': 6,
+                'height': 4
+            },
+            {
+                'widget_type': 'list',
+                'title': 'Upcoming Maintenance',
+                'data_source': '/api/fleet/maintenance-records/upcoming/',
                 'position_x': 6,
-                'position_y': 6,
+                'position_y': 14,
                 'width': 6,
                 'height': 4
             }
@@ -421,6 +494,140 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         
         serializer = ActivityFeedSerializer(activities[:limit], many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def weekly_performance(self, request):
+        """Get weekly performance metrics."""
+        organization = request.user.current_organization
+        from orders.models import Shipment
+        from dispatch.models import Trip
+        
+        # Get data for the last 7 days
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        
+        daily_data = []
+        for i in range(7):
+            day = timezone.now() - timedelta(days=i)
+            day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+            day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
+            # Shipments completed that day
+            completed_shipments = Shipment.objects.filter(
+                organization=organization,
+                status=Shipment.Status.DELIVERED,
+                updated_at__range=[day_start, day_end]
+            ).count()
+            
+            # Active trips that day
+            active_trips = Trip.objects.filter(
+                vehicle__organization=organization,
+                created_at__range=[day_start, day_end]
+            ).count()
+            
+            daily_data.append({
+                'date': day_start.date().isoformat(),
+                'completed_shipments': completed_shipments,
+                'active_trips': active_trips
+            })
+        
+        return Response(list(reversed(daily_data)))
+    
+    @action(detail=False, methods=['get'])
+    def alerts(self, request):
+        """Get active alerts for the organization."""
+        organization = request.user.current_organization
+        
+        # Get active dashboard alerts
+        dashboard_alerts = DashboardAlert.objects.filter(
+            organization=organization,
+            status=DashboardAlert.Status.ACTIVE
+        ).select_related('related_vehicle', 'related_driver')
+        
+        # Get active GPS alerts
+        from tracking.models import GPSAlert
+        gps_alerts = GPSAlert.objects.filter(
+            organization=organization,
+            status=GPSAlert.Status.ACTIVE
+        ).select_related('vehicle', 'driver')
+        
+        # Get upcoming maintenance
+        from fleet.models import MaintenanceRecord
+        upcoming_maintenance = MaintenanceRecord.objects.filter(
+            vehicle__organization=organization,
+            status=MaintenanceRecord.Status.SCHEDULED,
+            scheduled_date__lte=timezone.now() + timedelta(days=7)
+        ).select_related('vehicle')
+        
+        alerts = []
+        
+        # Dashboard alerts
+        for alert in dashboard_alerts:
+            alerts.append({
+                'id': str(alert.id),
+                'type': 'dashboard',
+                'severity': alert.severity,
+                'title': alert.title,
+                'message': alert.message,
+                'created_at': alert.created_at.isoformat(),
+                'entity_type': alert.alert_type,
+                'related_vehicle': alert.related_vehicle.plate_number if alert.related_vehicle else None,
+                'related_driver': alert.related_driver.user.get_full_name() if alert.related_driver else None
+            })
+        
+        # GPS alerts
+        for alert in gps_alerts:
+            alerts.append({
+                'id': str(alert.id),
+                'type': 'gps',
+                'severity': alert.severity,
+                'title': alert.title,
+                'message': alert.description,
+                'created_at': alert.created_at.isoformat(),
+                'entity_type': alert.alert_type,
+                'related_vehicle': alert.vehicle.plate_number if alert.vehicle else None,
+                'related_driver': alert.driver.user.get_full_name() if alert.driver else None
+            })
+        
+        # Maintenance alerts
+        for maintenance in upcoming_maintenance:
+            alerts.append({
+                'id': str(maintenance.id),
+                'type': 'maintenance',
+                'severity': 'medium',
+                'title': f'Upcoming Maintenance - {maintenance.vehicle.plate_number}',
+                'message': f'{maintenance.get_maintenance_type_display()} scheduled for {maintenance.scheduled_date}',
+                'created_at': maintenance.created_at.isoformat(),
+                'entity_type': 'maintenance',
+                'related_vehicle': maintenance.vehicle.plate_number,
+                'related_driver': None
+            })
+        
+        # Sort by severity and date
+        severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+        alerts.sort(key=lambda x: (severity_order.get(x['severity'], 4), x['created_at']), reverse=True)
+        
+        return Response(alerts[:20])
+    
+    @action(detail=False, methods=['get'])
+    def fuel_trend(self, request):
+        """Get fuel consumption trend."""
+        organization = request.user.current_organization
+        from fuel.models import FuelTransaction
+        
+        # Get fuel data for the last 30 days
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        
+        daily_fuel = FuelTransaction.objects.filter(
+            organization=organization,
+            date__gte=thirty_days_ago
+        ).annotate(
+            day=TruncDay('date')
+        ).values('day').annotate(
+            total_liters=Sum('quantity_liters'),
+            total_cost=Sum('total_cost')
+        ).order_by('day')
+        
+        return Response(list(daily_fuel))
     
     def _get_dashboard_metrics(self, organization):
         """Calculate comprehensive dashboard metrics."""
