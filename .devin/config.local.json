@@ -5,7 +5,12 @@
       "Exec(python)",
       "Exec(source)",
       "Exec(git init)",
-      "Exec(git add)"
+      "Exec(git add)",
+      "Exec(git status)",
+      "Exec(git commit)",
+      "Exec(git branch)",
+      "Exec(git remote)",
+      "Exec(git push)"
     ]
   }
 }

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'tracking',
     'fuel',
     'dashboard',
+    'routes',
 ]
 
 MIDDLEWARE = [

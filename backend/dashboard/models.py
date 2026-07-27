@@ -179,10 +179,10 @@ class DashboardAlert(models.Model):
     message = models.TextField()
     
     # Related entities
-    related_vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='alerts')
-    related_driver = models.ForeignKey(Driver, on_delete=models.SET_NULL, null=True, blank=True, related_name='alerts')
-    related_shipment = models.ForeignKey(Shipment, on_delete=models.SET_NULL, null=True, blank=True, related_name='alerts')
-    related_trip = models.ForeignKey(Trip, on_delete=models.SET_NULL, null=True, blank=True, related_name='alerts')
+    related_vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='dashboard_alerts')
+    related_driver = models.ForeignKey(Driver, on_delete=models.SET_NULL, null=True, blank=True, related_name='dashboard_alerts')
+    related_shipment = models.ForeignKey(Shipment, on_delete=models.SET_NULL, null=True, blank=True, related_name='dashboard_alerts')
+    related_trip = models.ForeignKey(Trip, on_delete=models.SET_NULL, null=True, blank=True, related_name='dashboard_alerts')
     
     # Threshold information
     threshold_value = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
