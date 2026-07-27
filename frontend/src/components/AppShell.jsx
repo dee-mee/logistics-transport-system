@@ -8,6 +8,9 @@ const NAV = [
   { to: "/fleet", label: "Fleet", icon: Truck },
   { to: "/trips", label: "Trips", icon: Route },
   { to: "/live-map", label: "Live Map", icon: Map },
+  { to: "/alerts", label: "Alerts", icon: AlertTriangle },
+  { to: "/fuel", label: "Fuel", icon: Fuel },
+  { to: "/maintenance", label: "Maintenance", icon: Wrench },
 ];
 
 export default function AppShell() {
@@ -20,7 +23,7 @@ export default function AppShell() {
           <div className="font-display font-semibold text-lg tracking-tight">Waybill</div>
           <div className="text-xs text-white/40 mt-0.5">Logistics Ops</div>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -37,58 +40,6 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
-        
-        {/* Quick Links */}
-        <div className="px-3 py-4 border-t border-white/10">
-          <div className="text-xs text-white/40 px-3 mb-2">Quick Access</div>
-          <div className="space-y-1">
-            <NavLink
-              to="/live-map"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`
-              }
-            >
-              <Map size={16} strokeWidth={2} />
-              Live Map
-            </NavLink>
-            <NavLink
-              to="/alerts"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`
-              }
-            >
-              <AlertTriangle size={16} strokeWidth={2} />
-              Alerts
-            </NavLink>
-            <NavLink
-              to="/fuel"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`
-              }
-            >
-              <Fuel size={16} strokeWidth={2} />
-              Fuel
-            </NavLink>
-            <NavLink
-              to="/maintenance"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`
-              }
-            >
-              <Wrench size={16} strokeWidth={2} />
-              Maintenance
-            </NavLink>
-          </div>
-        </div>
-        
         <div className="px-3 py-4 border-t border-white/10">
           <div className="px-3 py-2 text-sm">
             <div className="font-medium">{user?.username}</div>
