@@ -1,11 +1,29 @@
 import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import client from '../api/client';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default marker icons in Leaflet
+const customIcon = (color = '#3B82F6', emoji = '🚗') => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="background-color: ${color}; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+      ${emoji}
+    </div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+  });
+};
 
 const LiveFleetMap = () => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [mapCenter, setMapCenter] = useState([20, 0]);
+  const [mapZoom, setMapZoom] = useState(2);
 
   useEffect(() => {
     fetchLiveMapData();
@@ -20,6 +38,14 @@ const LiveFleetMap = () => {
       const response = await client.get('/tracking/location-pings/live_map/');
       setVehicles(response.data);
       setError(null);
+      
+      // Update map center if we have vehicles
+      if (response.data.length > 0) {
+        const avgLat = response.data.reduce((sum, v) => sum + (v.lat || 0), 0) / response.data.length;
+        const avgLng = response.data.reduce((sum, v) => sum + (v.lng || 0), 0) / response.data.length;
+        setMapCenter([avgLat, avgLng]);
+        setMapZoom(6);
+      }
     } catch (err) {
       setError('Failed to load live map data');
       console.error('Error fetching live map data:', err);
@@ -30,12 +56,12 @@ const LiveFleetMap = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      'available': 'bg-green-500',
-      'in_use': 'bg-blue-500',
-      'maintenance': 'bg-yellow-500',
-      'out_of_service': 'bg-red-500',
+      'available': '#10B981',
+      'in_use': '#3B82F6',
+      'maintenance': '#F59E0B',
+      'out_of_service': '#EF4444',
     };
-    return colors[status] || 'bg-gray-500';
+    return colors[status] || '#6B7280';
   };
 
   const getVehicleIcon = (vehicleType) => {
@@ -46,23 +72,6 @@ const LiveFleetMap = () => {
       'motorcycle': '🏍️',
     };
     return icons[vehicleType] || '🚗';
-  };
-
-  // World map coordinates (simplified)
-  const worldMapRegions = [
-    { name: 'North America', lat: 40, lng: -100 },
-    { name: 'South America', lat: -15, lng: -60 },
-    { name: 'Europe', lat: 50, lng: 10 },
-    { name: 'Africa', lat: 0, lng: 20 },
-    { name: 'Asia', lat: 35, lng: 100 },
-    { name: 'Australia', lat: -25, lng: 135 },
-  ];
-
-  const projectLatLonToXY = (lat, lng) => {
-    // Simple equirectangular projection
-    const x = ((lng + 180) / 360) * 100;
-    const y = ((-lat + 90) / 180) * 100;
-    return { x, y };
   };
 
   if (loading) {
@@ -98,68 +107,52 @@ const LiveFleetMap = () => {
       </div>
 
       {/* Map Container */}
-      <div className="relative bg-gradient-to-br from-blue-50 to-green-50 rounded-lg h-64 mb-4 overflow-hidden border border-gray-200">
-        {/* World Map Background */}
-        <div className="absolute inset-0 opacity-30">
-          <svg viewBox="0 0 1000 500" className="w-full h-full">
-            {/* Simplified world map outline */}
-            <path d="M150,150 Q200,100 250,150 T350,150 T450,150 T550,150 T650,150 T750,150 T850,150" 
-                  stroke="#3B82F6" strokeWidth="2" fill="none" opacity="0.5"/>
-            <path d="M100,200 Q150,150 200,200 T300,200 T400,200 T500,200 T600,200 T700,200 T800,200 T900,200" 
-                  stroke="#10B981" strokeWidth="2" fill="none" opacity="0.5"/>
-            <path d="M200,250 Q250,200 300,250 T400,250 T500,250 T600,250 T700,250 T800,250" 
-                  stroke="#F59E0B" strokeWidth="2" fill="none" opacity="0.5"/>
-            {/* Grid lines */}
-            <line x1="0" y1="250" x2="1000" y2="250" stroke="#9CA3AF" strokeWidth="0.5" opacity="0.3"/>
-            <line x1="500" y1="0" x2="500" y2="500" stroke="#9CA3AF" strokeWidth="0.5" opacity="0.3"/>
-          {/* Region labels */}
-            {worldMapRegions.map((region, index) => {
-              const { x, y } = projectLatLonToXY(region.lat, region.lng);
-              return (
-                <text key={index} x={x} y={y} fontSize="10" fill="#6B7280" opacity="0.6" textAnchor="middle">
-                  {region.name}
-                </text>
-              );
-            })}
-          </svg>
-        </div>
-
-        {/* Vehicle markers */}
-        {vehicles.length > 0 ? vehicles.map((vehicle, index) => {
-          // Use actual lat/lng if available, otherwise distribute
-          const lat = vehicle.lat || 0;
-          const lng = vehicle.lng || 0;
-          const { x, y } = projectLatLonToXY(lat, lng);
+      <div className="relative bg-gray-100 rounded-lg h-64 mb-4 overflow-hidden">
+        <MapContainer
+          center={mapCenter}
+          zoom={mapZoom}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+          scrollWheelZoom={false}
+          dragging={false}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
+          />
           
-          return (
-            <div
-              key={vehicle.vehicle_id}
-              className="absolute cursor-pointer transform hover:scale-110 transition-transform"
-              style={{ left: `${x}%`, top: `${y}%` }}
-              onClick={() => setSelectedVehicle(vehicle)}
-            >
-              <div className={`w-8 h-8 rounded-full ${getStatusColor(vehicle.status)} flex items-center justify-center text-white shadow-lg border-2 border-white`}>
-                {getVehicleIcon(vehicle.vehicle_type)}
-              </div>
-              <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs bg-white px-2 py-1 rounded shadow whitespace-nowrap font-medium">
-                {vehicle.plate_number}
-              </div>
-            </div>
-          );
-        }) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-4xl mb-2">🗺️</div>
-              <div className="text-sm text-gray-600 font-medium">World Map</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {vehicles.length} vehicles tracked
-              </div>
-              <div className="text-xs text-blue-600 mt-2">
-                Waiting for GPS updates...
-              </div>
-            </div>
-          </div>
-        )}
+          {vehicles.map((vehicle) => {
+            if (!vehicle.lat || !vehicle.lng) return null;
+            
+            return (
+              <Marker
+                key={vehicle.vehicle_id}
+                position={[vehicle.lat, vehicle.lng]}
+                icon={customIcon(getStatusColor(vehicle.status), getVehicleIcon(vehicle.vehicle_type))}
+                eventHandlers={{
+                  click: () => setSelectedVehicle(vehicle)
+                }}
+              >
+                <Popup>
+                  <div className="p-2">
+                    <div className="font-bold text-gray-800">{vehicle.plate_number}</div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      <div>Type: {vehicle.vehicle_type}</div>
+                      <div>Status: {vehicle.status}</div>
+                      {vehicle.driver_name && <div>Driver: {vehicle.driver_name}</div>}
+                      {vehicle.speed_kmh && <div>Speed: {vehicle.speed_kmh} km/h</div>}
+                      {vehicle.address && <div>📍 {vehicle.address}</div>}
+                      <div className="text-xs text-gray-500 mt-2">
+                        Last update: {new Date(vehicle.last_update).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
       </div>
 
       {/* Vehicle List */}
@@ -191,7 +184,7 @@ const LiveFleetMap = () => {
                 </div>
               </div>
               <div className="text-right">
-                <div className={`inline-block w-3 h-3 rounded-full ${getStatusColor(vehicle.status)}`}></div>
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getStatusColor(vehicle.status) }}></div>
                 <div className="text-xs text-gray-500 mt-1">
                   {vehicle.speed_kmh ? `${vehicle.speed_kmh} km/h` : 'Stationary'}
                 </div>

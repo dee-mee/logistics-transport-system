@@ -11,7 +11,8 @@
       "Exec(git branch)",
       "Exec(git remote)",
       "Exec(git push)",
-      "Exec(cat)"
+      "Exec(cat)",
+      "Exec(npm install)"
     ]
   }
 }
