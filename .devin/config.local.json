@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(find)",
+      "Exec(python)",
+      "Exec(source)",
+      "Exec(git init)",
+      "Exec(git add)"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import (
+    DashboardWidgetViewSet, SavedReportViewSet, MetricSnapshotViewSet,
+    DashboardAlertViewSet, DashboardMetricsViewSet
+)
+
+router = DefaultRouter()
+router.register(r'widgets', DashboardWidgetViewSet, basename='dashboard-widget')
+router.register(r'reports', SavedReportViewSet, basename='saved-report')
+router.register(r'metrics-snapshots', MetricSnapshotViewSet, basename='metric-snapshot')
+router.register(r'alerts', DashboardAlertViewSet, basename='dashboard-alert')
+
+urlpatterns = [
+    path('', include(router.urls)),
+    path('metrics/', DashboardMetricsViewSet.as_view({'get': 'list'}), name='dashboard-metrics'),
+    path('metrics/vehicle-status/', DashboardMetricsViewSet.as_view({'get': 'vehicle_status'}), name='vehicle-status'),
+    path('metrics/shipment-status/', DashboardMetricsViewSet.as_view({'get': 'shipment_status'}), name='shipment-status'),
+    path('metrics/shipment-trend/', DashboardMetricsViewSet.as_view({'get': 'shipment_trend'}), name='shipment-trend'),
+    path('metrics/activity-feed/', DashboardMetricsViewSet.as_view({'get': 'activity_feed'}), name='activity-feed'),
+]
