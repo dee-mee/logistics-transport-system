@@ -7,6 +7,9 @@ import Shipments from "./pages/Shipments";
 import Fleet from "./pages/Fleet";
 import Trips from "./pages/Trips";
 import LiveMap from "./pages/LiveMap";
+import Alerts from "./pages/Alerts";
+import FuelManagement from "./pages/Fuel";
+import Maintenance from "./pages/Maintenance";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -35,6 +38,9 @@ function AppRoutes() {
         <Route path="fleet" element={<Fleet />} />
         <Route path="trips" element={<Trips />} />
         <Route path="live-map" element={<LiveMap />} />
+        <Route path="alerts" element={<Alerts />} />
+        <Route path="fuel" element={<FuelManagement />} />
+        <Route path="maintenance" element={<Maintenance />} />
       </Route>
     </Routes>
   );
