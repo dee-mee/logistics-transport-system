@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Package, Truck, Users, Route, MapPin, DollarSign, Clock, AlertTriangle, Wrench, TrendingUp, Activity, Fuel } from "lucide-react";
+import { Package, Truck, Users, Route, DollarSign, Clock, TrendingUp, Activity } from "lucide-react";
 import client from "../api/client";
 import StatusBadge from "../components/StatusBadge";
 import ManifestTag from "../components/ManifestTag";
-import LiveFleetMap from "../components/LiveFleetMap";
 import { Link } from "react-router-dom";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -29,46 +28,6 @@ function StatCard({ icon: Icon, label, value, trend, trendUp }) {
   );
 }
 
-function AlertCard({ alert }) {
-  const getSeverityColor = (severity) => {
-    const colors = {
-      'critical': 'bg-red-100 border-red-500 text-red-800',
-      'high': 'bg-orange-100 border-orange-500 text-orange-800',
-      'medium': 'bg-yellow-100 border-yellow-500 text-yellow-800',
-      'low': 'bg-blue-100 border-blue-500 text-blue-800',
-    };
-    return colors[severity] || colors['low'];
-  };
-
-  const getIcon = (type) => {
-    const icons = {
-      'dashboard': AlertTriangle,
-      'gps': MapPin,
-      'maintenance': Wrench,
-    };
-    const Icon = icons[type] || AlertTriangle;
-    return <Icon size={16} />;
-  };
-
-  return (
-    <div className={`p-3 rounded-lg border-l-4 ${getSeverityColor(alert.severity)} mb-2`}>
-      <div className="flex items-start gap-2">
-        <div className="mt-0.5">{getIcon(alert.type)}</div>
-        <div className="flex-1">
-          <div className="font-medium text-sm">{alert.title}</div>
-          <div className="text-xs opacity-80 mt-1">{alert.message}</div>
-          {alert.related_vehicle && (
-            <div className="text-xs mt-1 font-medium">Vehicle: {alert.related_vehicle}</div>
-          )}
-        </div>
-        <div className="text-xs opacity-60">
-          {new Date(alert.created_at).toLocaleTimeString()}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Dashboard() {
   const [stats, setStats] = useState({ 
     shipments: 0, vehicles: 0, drivers: 0, trips: 0, 
@@ -79,9 +38,6 @@ export default function Dashboard() {
   const [shipmentStatus, setShipmentStatus] = useState([]);
   const [shipmentTrend, setShipmentTrend] = useState([]);
   const [weeklyPerformance, setWeeklyPerformance] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [fuelTrend, setFuelTrend] = useState([]);
-  const [upcomingMaintenance, setUpcomingMaintenance] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -97,7 +53,7 @@ export default function Dashboard() {
       const [
         shipmentsRes, vehiclesRes, driversRes, tripsRes,
         vehicleStatusRes, shipmentStatusRes, shipmentTrendRes,
-        weeklyPerformanceRes, alertsRes, fuelTrendRes, maintenanceRes
+        weeklyPerformanceRes
       ] = await Promise.all([
         client.get("/orders/shipments/?page_size=5"),
         client.get("/fleet/vehicles/"),
@@ -107,9 +63,6 @@ export default function Dashboard() {
         client.get("/dashboard/shipment_status/"),
         client.get("/dashboard/shipment_trend/"),
         client.get("/dashboard/weekly_performance/"),
-        client.get("/dashboard/alerts/"),
-        client.get("/dashboard/fuel_trend/"),
-        client.get("/fleet/maintenance-records/upcoming/"),
       ]);
 
       setStats({
@@ -125,9 +78,6 @@ export default function Dashboard() {
       setShipmentStatus(shipmentStatusRes.data);
       setShipmentTrend(shipmentTrendRes.data);
       setWeeklyPerformance(weeklyPerformanceRes.data);
-      setAlerts(alertsRes.data);
-      setFuelTrend(fuelTrendRes.data);
-      setUpcomingMaintenance(maintenanceRes.data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -169,23 +119,8 @@ export default function Dashboard() {
         <StatCard icon={Clock} label="On-Time Rate" value={`${stats.onTimeRate}%`} trend={2} trendUp={true} />
       </div>
 
-      {/* Live Map and Status Charts */}
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        <div className="col-span-1 bg-white border border-line rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-teal" />
-              <h2 className="font-medium text-ink">Live Fleet Map</h2>
-            </div>
-            <Link to="/live-map" className="text-sm text-teal font-medium hover:underline">
-              Full Map →
-            </Link>
-          </div>
-          <div className="p-4">
-            <LiveFleetMap />
-          </div>
-        </div>
-
+      {/* Status Charts */}
+      <div className="grid grid-cols-2 gap-6 mb-6">
         <div className="bg-white border border-line rounded-xl p-5">
           <h3 className="font-medium text-ink mb-4">Vehicle Status Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
@@ -264,125 +199,38 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Activity Feed and Alerts */}
-      <div className="grid grid-cols-3 gap-6 mb-6">
-        <div className="col-span-2 bg-white border border-line rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-teal" />
-              <h2 className="font-medium text-ink">Recent Activity</h2>
-            </div>
-            <Link to="/shipments" className="text-sm text-teal font-medium hover:underline">
-              View All →
-            </Link>
+      {/* Activity Feed */}
+      <div className="bg-white border border-line rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-teal" />
+            <h2 className="font-medium text-ink">Recent Activity</h2>
           </div>
-          <div className="p-5">
-            {recentShipments.length === 0 ? (
-              <div className="text-center text-sm text-ink-700/50 py-8">
-                No recent activity
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <tbody>
-                  {recentShipments.map((s) => (
-                    <tr key={s.id} className="border-b border-line last:border-0">
-                      <td className="px-4 py-3"><ManifestTag>{s.tracking_code}</ManifestTag></td>
-                      <td className="px-4 py-3 text-ink-700">{s.pickup_address} → {s.dropoff_address}</td>
-                      <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                      <td className="px-4 py-3 text-xs text-ink-700/50">
-                        {new Date(s.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <Link to="/shipments" className="text-sm text-teal font-medium hover:underline">
+            View All →
+          </Link>
         </div>
-
-        <div className="bg-white border border-line rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-teal" />
-              <h2 className="font-medium text-ink">Active Alerts</h2>
+        <div className="p-5">
+          {recentShipments.length === 0 ? (
+            <div className="text-center text-sm text-ink-700/50 py-8">
+              No recent activity
             </div>
-            <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
-              {alerts.length}
-            </span>
-          </div>
-          <div className="p-4 max-h-64 overflow-y-auto">
-            {alerts.length === 0 ? (
-              <div className="text-center text-sm text-ink-700/50 py-8">
-                No active alerts
-              </div>
-            ) : (
-              alerts.slice(0, 5).map((alert) => (
-                <AlertCard key={alert.id} alert={alert} />
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Fuel and Maintenance */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white border border-line rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Fuel className="w-5 h-5 text-teal" />
-            <h3 className="font-medium text-ink">Fuel Consumption Trend (30 Days)</h3>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={fuelTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tick={{fontSize: 12}} />
-              <YAxis tick={{fontSize: 12}} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="total_liters" stroke="#00C49F" strokeWidth={2} name="Liters" />
-              <Line type="monotone" dataKey="total_cost" stroke="#FF8042" strokeWidth={2} name="Cost ($)" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white border border-line rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-teal" />
-              <h2 className="font-medium text-ink">Upcoming Maintenance</h2>
-            </div>
-            <Link to="/fleet" className="text-sm text-teal font-medium hover:underline">
-              View All →
-            </Link>
-          </div>
-          <div className="p-5">
-            {upcomingMaintenance.length === 0 ? (
-              <div className="text-center text-sm text-ink-700/50 py-8">
-                No upcoming maintenance scheduled
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {upcomingMaintenance.slice(0, 5).map((maintenance) => (
-                  <div key={maintenance.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center">
-                        <Wrench size={18} />
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm">{maintenance.vehicle?.plate_number || 'Unknown Vehicle'}</div>
-                        <div className="text-xs text-ink-700/60">{maintenance.get_maintenance_type_display()}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">
-                        {new Date(maintenance.scheduled_date).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-ink-700/50">{maintenance.priority}</div>
-                    </div>
-                  </div>
+          ) : (
+            <table className="w-full text-sm">
+              <tbody>
+                {recentShipments.map((s) => (
+                  <tr key={s.id} className="border-b border-line last:border-0">
+                    <td className="px-4 py-3"><ManifestTag>{s.tracking_code}</ManifestTag></td>
+                    <td className="px-4 py-3 text-ink-700">{s.pickup_address} → {s.dropoff_address}</td>
+                    <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                    <td className="px-4 py-3 text-xs text-ink-700/50">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            )}
-          </div>
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

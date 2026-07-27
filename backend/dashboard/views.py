@@ -91,24 +91,15 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'width': 2,
                 'height': 2
             },
-            # Second row - Live map and vehicle status
-            {
-                'widget_type': 'live_map',
-                'title': 'Live Fleet Map',
-                'data_source': '/api/tracking/location-pings/live_map/',
-                'position_x': 0,
-                'position_y': 2,
-                'width': 4,
-                'height': 4
-            },
+            # Second row - Status charts
             {
                 'widget_type': 'chart',
                 'chart_type': 'pie',
                 'title': 'Vehicle Status Distribution',
                 'data_source': '/api/dashboard/vehicle_status/',
-                'position_x': 4,
+                'position_x': 0,
                 'position_y': 2,
-                'width': 4,
+                'width': 6,
                 'height': 4
             },
             {
@@ -116,9 +107,9 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'chart_type': 'pie',
                 'title': 'Shipment Status',
                 'data_source': '/api/dashboard/shipment_status/',
-                'position_x': 8,
+                'position_x': 6,
                 'position_y': 2,
-                'width': 4,
+                'width': 6,
                 'height': 4
             },
             # Third row - Trends and performance
@@ -142,43 +133,14 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'width': 6,
                 'height': 4
             },
-            # Fourth row - Activity feed and alerts
+            # Fourth row - Activity feed
             {
                 'widget_type': 'activity_feed',
                 'title': 'Recent Activity',
                 'data_source': '/api/dashboard/activity_feed/',
                 'position_x': 0,
                 'position_y': 10,
-                'width': 8,
-                'height': 4
-            },
-            {
-                'widget_type': 'alerts',
-                'title': 'Active Alerts',
-                'data_source': '/api/dashboard/alerts/',
-                'position_x': 8,
-                'position_y': 10,
-                'width': 4,
-                'height': 4
-            },
-            # Fifth row - Fuel and maintenance
-            {
-                'widget_type': 'chart',
-                'chart_type': 'line',
-                'title': 'Fuel Consumption Trend',
-                'data_source': '/api/dashboard/fuel_trend/',
-                'position_x': 0,
-                'position_y': 14,
-                'width': 6,
-                'height': 4
-            },
-            {
-                'widget_type': 'list',
-                'title': 'Upcoming Maintenance',
-                'data_source': '/api/fleet/maintenance-records/upcoming/',
-                'position_x': 6,
-                'position_y': 14,
-                'width': 6,
+                'width': 12,
                 'height': 4
             }
         ]

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, Package, Truck, Route, LogOut, Map } from "lucide-react";
+import { LayoutDashboard, Package, Truck, Route, LogOut, Map, AlertTriangle, Fuel, Wrench } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const NAV = [
@@ -37,6 +37,58 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
+        
+        {/* Quick Links */}
+        <div className="px-3 py-4 border-t border-white/10">
+          <div className="text-xs text-white/40 px-3 mb-2">Quick Access</div>
+          <div className="space-y-1">
+            <NavLink
+              to="/live-map"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              <Map size={16} strokeWidth={2} />
+              Live Map
+            </NavLink>
+            <NavLink
+              to="/alerts"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              <AlertTriangle size={16} strokeWidth={2} />
+              Alerts
+            </NavLink>
+            <NavLink
+              to="/fuel"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              <Fuel size={16} strokeWidth={2} />
+              Fuel
+            </NavLink>
+            <NavLink
+              to="/maintenance"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              <Wrench size={16} strokeWidth={2} />
+              Maintenance
+            </NavLink>
+          </div>
+        </div>
+        
         <div className="px-3 py-4 border-t border-white/10">
           <div className="px-3 py-2 text-sm">
             <div className="font-medium">{user?.username}</div>
