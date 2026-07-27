@@ -71,10 +71,9 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'height': 2
             },
             {
-                'widget_type': 'chart',
-                'chart_type': 'line',
-                'title': 'Shipments Trend',
-                'data_source': '/api/dashboard/shipment_trend/',
+                'widget_type': 'live_map',
+                'title': 'Live Fleet Map',
+                'data_source': '/api/tracking/location-pings/live_map/',
                 'position_x': 0,
                 'position_y': 2,
                 'width': 6,
@@ -91,12 +90,22 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
                 'height': 4
             },
             {
+                'widget_type': 'chart',
+                'chart_type': 'line',
+                'title': 'Shipments Trend',
+                'data_source': '/api/dashboard/shipment_trend/',
+                'position_x': 0,
+                'position_y': 6,
+                'width': 6,
+                'height': 4
+            },
+            {
                 'widget_type': 'activity_feed',
                 'title': 'Recent Activity',
                 'data_source': '/api/dashboard/activity_feed/',
-                'position_x': 0,
+                'position_x': 6,
                 'position_y': 6,
-                'width': 12,
+                'width': 6,
                 'height': 4
             }
         ]

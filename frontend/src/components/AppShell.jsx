@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, Package, Truck, Route, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, Truck, Route, LogOut, Map } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const NAV = [
@@ -7,6 +7,7 @@ const NAV = [
   { to: "/shipments", label: "Shipments", icon: Package },
   { to: "/fleet", label: "Fleet", icon: Truck },
   { to: "/trips", label: "Trips", icon: Route },
+  { to: "/live-map", label: "Live Map", icon: Map },
 ];
 
 export default function AppShell() {

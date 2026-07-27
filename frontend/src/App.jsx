@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Shipments from "./pages/Shipments";
 import Fleet from "./pages/Fleet";
 import Trips from "./pages/Trips";
+import LiveMap from "./pages/LiveMap";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ function AppRoutes() {
         <Route path="shipments" element={<Shipments />} />
         <Route path="fleet" element={<Fleet />} />
         <Route path="trips" element={<Trips />} />
+        <Route path="live-map" element={<LiveMap />} />
       </Route>
     </Routes>
   );

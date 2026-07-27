@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Package, Truck, Users, Route } from "lucide-react";
+import { Package, Truck, Users, Route, MapPin } from "lucide-react";
 import client from "../api/client";
 import StatusBadge from "../components/StatusBadge";
 import ManifestTag from "../components/ManifestTag";
+import LiveFleetMap from "../components/LiveFleetMap";
 import { Link } from "react-router-dom";
 
 function StatCard({ icon: Icon, label, value }) {
@@ -50,6 +51,25 @@ export default function Dashboard() {
         <StatCard icon={Truck} label="Vehicles" value={stats.vehicles} />
         <StatCard icon={Users} label="Drivers" value={stats.drivers} />
         <StatCard icon={Route} label="Trips" value={stats.trips} />
+      </div>
+
+      {/* Live Fleet Map Section */}
+      <div className="bg-white border border-line rounded-xl overflow-hidden mb-8">
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-teal" />
+            <h2 className="font-medium text-ink">Live Fleet Map</h2>
+          </div>
+          <Link
+            to="/live-map"
+            className="px-3 py-1.5 bg-teal text-white rounded-lg text-sm font-medium hover:bg-teal/90 transition-colors"
+          >
+            Open Full Map
+          </Link>
+        </div>
+        <div className="p-5">
+          <LiveFleetMap />
+        </div>
       </div>
 
       <div className="bg-white border border-line rounded-xl overflow-hidden">

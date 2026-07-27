@@ -11,3 +11,4 @@ client.interceptors.request.use((config) => {
 });
 
 export default client;
+export const apiClient = client;
