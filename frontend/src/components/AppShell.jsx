@@ -23,7 +23,7 @@ export default function AppShell() {
           <div className="font-display font-semibold text-lg tracking-tight">Waybill</div>
           <div className="text-xs text-white/40 mt-0.5">Logistics Ops</div>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="px-3 py-4 space-y-1 overflow-y-auto">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}

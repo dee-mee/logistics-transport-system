@@ -17,5 +17,8 @@ urlpatterns = [
     path('metrics/vehicle-status/', DashboardMetricsViewSet.as_view({'get': 'vehicle_status'}), name='vehicle-status'),
     path('metrics/shipment-status/', DashboardMetricsViewSet.as_view({'get': 'shipment_status'}), name='shipment-status'),
     path('metrics/shipment-trend/', DashboardMetricsViewSet.as_view({'get': 'shipment_trend'}), name='shipment-trend'),
+    path('metrics/weekly-performance/', DashboardMetricsViewSet.as_view({'get': 'weekly_performance'}), name='weekly-performance'),
     path('metrics/activity-feed/', DashboardMetricsViewSet.as_view({'get': 'activity_feed'}), name='activity-feed'),
+    path('metrics/alerts/', DashboardMetricsViewSet.as_view({'get': 'alerts'}), name='alerts'),
+    path('metrics/fuel-trend/', DashboardMetricsViewSet.as_view({'get': 'fuel_trend'}), name='fuel-trend'),
 ]

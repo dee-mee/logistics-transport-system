@@ -16,7 +16,7 @@ const FuelManagement = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await client.get('/dashboard/fuel_trend/');
+      const response = await client.get('/dashboard/metrics/fuel_trend/');
       setFuelTrend(response.data || []);
     } catch (error) {
       console.error('Error fetching fuel data:', error);

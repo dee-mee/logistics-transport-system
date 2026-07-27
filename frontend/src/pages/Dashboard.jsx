@@ -59,10 +59,10 @@ export default function Dashboard() {
         client.get("/fleet/vehicles/"),
         client.get("/fleet/drivers/"),
         client.get("/dispatch/trips/"),
-        client.get("/dashboard/vehicle_status/"),
-        client.get("/dashboard/shipment_status/"),
-        client.get("/dashboard/shipment_trend/"),
-        client.get("/dashboard/weekly_performance/"),
+        client.get("/dashboard/metrics/vehicle_status/"),
+        client.get("/dashboard/metrics/shipment_status/"),
+        client.get("/dashboard/metrics/shipment_trend/"),
+        client.get("/dashboard/metrics/weekly_performance/"),
       ]);
 
       setStats({

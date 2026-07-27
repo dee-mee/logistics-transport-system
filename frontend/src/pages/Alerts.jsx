@@ -55,7 +55,7 @@ const Alerts = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await client.get('/dashboard/alerts/');
+      const response = await client.get('/dashboard/metrics/alerts/');
       setAlerts(response.data || []);
     } catch (error) {
       console.error('Error fetching alerts:', error);
