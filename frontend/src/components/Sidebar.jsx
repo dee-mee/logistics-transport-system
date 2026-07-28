@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
@@ -23,13 +23,19 @@ import {
 
 function Sidebar() {
   const location = useLocation();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [expandedSections, setExpandedSections] = useState({
     operations: true,
     fleet: true,
     management: true,
     reports: false
   });
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -172,7 +178,10 @@ function Sidebar() {
               <User size={16} />
               View Profile
             </Link>
-            <button className="w-full flex items-center gap-3 px-4 py-2.5 text-white/70 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors">
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-white/70 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"
+            >
               <LogOut size={16} />
               Logout
             </button>

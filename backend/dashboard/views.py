@@ -344,8 +344,10 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         total_orders = Shipment.objects.filter(organization=organization).count()
         total_shipments = Shipment.objects.filter(organization=organization).count()
         
-        # Calculate revenue (placeholder - would come from actual financial data)
-        total_revenue = 45230  # Placeholder
+        # Calculate revenue from actual shipment costs
+        total_revenue = Shipment.objects.filter(organization=organization).aggregate(
+            total=Sum('estimated_cost')
+        )['total'] or 0
         
         # Calculate expenses (fuel costs)
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -355,7 +357,7 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         )
         total_expense = fuel_transactions.aggregate(
             total=Sum('total_cost')
-        )['total'] or 12450  # Fallback to placeholder
+        )['total'] or 0
         
         # Calculate weekly deltas
         week_ago = timezone.now() - timedelta(days=7)
@@ -374,6 +376,34 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         if two_weeks_ago_orders > 0:
             orders_delta = ((week_ago_orders - two_weeks_ago_orders) / two_weeks_ago_orders) * 100
         
+        # Calculate revenue delta
+        week_ago_revenue = Shipment.objects.filter(
+            organization=organization,
+            created_at__gte=week_ago
+        ).aggregate(total=Sum('estimated_cost'))['total'] or 0
+        two_weeks_ago_revenue = Shipment.objects.filter(
+            organization=organization,
+            created_at__gte=two_weeks_ago,
+            created_at__lt=week_ago
+        ).aggregate(total=Sum('estimated_cost'))['total'] or 0
+        revenue_delta = 0
+        if two_weeks_ago_revenue > 0:
+            revenue_delta = ((week_ago_revenue - two_weeks_ago_revenue) / two_weeks_ago_revenue) * 100
+        
+        # Calculate expense delta
+        week_ago_expense = FuelTransaction.objects.filter(
+            organization=organization,
+            date__gte=week_ago
+        ).aggregate(total=Sum('total_cost'))['total'] or 0
+        two_weeks_ago_expense = FuelTransaction.objects.filter(
+            organization=organization,
+            date__gte=two_weeks_ago,
+            date__lt=week_ago
+        ).aggregate(total=Sum('total_cost'))['total'] or 0
+        expense_delta = 0
+        if two_weeks_ago_expense > 0:
+            expense_delta = ((week_ago_expense - two_weeks_ago_expense) / two_weeks_ago_expense) * 100
+        
         return Response({
             'totalOrders': {
                 'value': str(total_orders),
@@ -382,18 +412,18 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             },
             'totalShipments': {
                 'value': str(total_shipments),
-                'delta': 8.0,  # Placeholder
-                'deltaDirection': 'up'
+                'delta': round(orders_delta, 1),
+                'deltaDirection': 'up' if orders_delta >= 0 else 'down'
             },
             'revenue': {
                 'value': f'${total_revenue:,.0f}',
-                'delta': 15.0,  # Placeholder
-                'deltaDirection': 'up'
+                'delta': round(revenue_delta, 1),
+                'deltaDirection': 'up' if revenue_delta >= 0 else 'down'
             },
             'totalExpense': {
                 'value': f'${total_expense:,.0f}',
-                'delta': -3.0,  # Placeholder
-                'deltaDirection': 'down'
+                'delta': round(expense_delta, 1),
+                'deltaDirection': 'up' if expense_delta >= 0 else 'down'
             }
         })
     
@@ -507,21 +537,6 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         except Trip.DoesNotExist:
             waypoints = []
         
-        # If no GPS entries, create mock waypoints from pickup/dropoff
-        if not waypoints:
-            waypoints = [
-                {
-                    'lat': 40.7128,  # Placeholder coordinates
-                    'lng': -74.0060,
-                    'address': shipment.pickup_address or 'Pickup Location'
-                },
-                {
-                    'lat': 40.7580,
-                    'lng': -73.9855,
-                    'address': shipment.dropoff_address or 'Dropoff Location'
-                }
-            ]
-        
         return Response(waypoints)
     
     @action(detail=False, methods=['get'])
@@ -553,16 +568,20 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             driver_name = trip.driver.user.get_full_name() if trip.driver else 'Unassigned'
             distance = f"{trip.estimated_distance_km} km" if trip.estimated_distance_km else 'Unknown'
             estimation = f"{trip.estimated_duration_hours}h" if trip.estimated_duration_hours else 'Unknown'
+            experience = f"{trip.driver.years_experience} years" if trip.driver and hasattr(trip.driver, 'years_experience') else 'Unknown'
+            license = trip.driver.license_number if trip.driver and hasattr(trip.driver, 'license_number') else 'Unknown'
         except Trip.DoesNotExist:
             driver_name = 'Unassigned'
             distance = 'Unknown'
             estimation = 'Unknown'
+            experience = 'Unknown'
+            license = 'Unknown'
         
         return Response({
             'driverName': driver_name,
             'distance': distance,
-            'experience': '5 years',  # Placeholder
-            'license': 'DL-12345',  # Placeholder
+            'experience': experience,
+            'license': license,
             'idNumber': str(shipment.id),
             'estimation': estimation,
             'weight': f'{shipment.weight_kg} kg' if hasattr(shipment, 'weight_kg') else 'Unknown',
@@ -888,17 +907,30 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             total=Sum('quantity_liters')
         )['total'] or 0
         
-        # Calculate average consumption
+        # Calculate average consumption based on trip distances
+        total_distance = Trip.objects.filter(
+            vehicle__organization=organization,
+            actual_distance_km__isnull=False
+        ).aggregate(total=Sum('actual_distance_km'))['total'] or 0
         avg_consumption = 0
-        if total_fuel > 0:
-            # This would need proper distance calculation
-            avg_consumption = 8.5  # Placeholder
+        if total_distance > 0 and total_fuel > 0:
+            avg_consumption = (total_fuel / total_distance) * 100  # L/100km
         
-        # Revenue (placeholder - would need proper invoicing)
-        total_revenue = completed * 150  # Placeholder calculation
+        # Revenue from completed shipments
+        total_revenue = Shipment.objects.filter(
+            organization=organization,
+            status=Shipment.Status.DELIVERED
+        ).aggregate(total=Sum('estimated_cost'))['total'] or 0
         
-        # On-time delivery rate
-        on_time_rate = 95.0  # Placeholder
+        # On-time delivery rate (based on actual vs estimated delivery time)
+        on_time_shipments = Shipment.objects.filter(
+            organization=organization,
+            status=Shipment.Status.DELIVERED,
+            actual_delivery_time__lte=F('estimated_delivery_time')
+        ).count()
+        on_time_rate = 0
+        if completed > 0:
+            on_time_rate = (on_time_shipments / completed) * 100
         
         return {
             'total_vehicles': total_vehicles,

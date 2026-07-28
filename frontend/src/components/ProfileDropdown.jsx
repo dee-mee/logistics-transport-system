@@ -8,8 +8,8 @@ function ProfileDropdown({ user }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/login');
   }
 

@@ -11,12 +11,12 @@ export default function Dashboard() {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Stats data
+  // Stats data - will be fetched from API
   const [stats, setStats] = useState({
-    totalOrders: { value: '1,234', delta: 12, deltaDirection: 'up' },
-    totalShipments: { value: '856', delta: 8, deltaDirection: 'up' },
-    revenue: { value: '$45,230', delta: 15, deltaDirection: 'up' },
-    totalExpense: { value: '$12,450', delta: -3, deltaDirection: 'down' },
+    totalOrders: { value: '0', delta: 0, deltaDirection: 'up' },
+    totalShipments: { value: '0', delta: 0, deltaDirection: 'up' },
+    revenue: { value: '$0', delta: 0, deltaDirection: 'up' },
+    totalExpense: { value: '$0', delta: 0, deltaDirection: 'down' },
   });
   
   // Active orders data
@@ -48,15 +48,13 @@ export default function Dashboard() {
       
       // Fetch real data
       const [statsRes, activeOrdersRes, transactionsRes] = await Promise.all([
-        client.get('/dashboard/stats/').catch(() => ({ data: null })),
-        client.get('/dashboard/active-orders/').catch(() => ({ data: null })),
-        client.get('/dashboard/transactions/').catch(() => ({ data: null })),
+        client.get('/dashboard/stats/'),
+        client.get('/dashboard/active-orders/'),
+        client.get('/dashboard/transactions/'),
       ]);
 
       if (statsRes.data) {
         setStats(statsRes.data);
-      } else {
-        setMockData();
       }
       
       if (activeOrdersRes.data && activeOrdersRes.data.length > 0) {
@@ -64,20 +62,14 @@ export default function Dashboard() {
         if (!selectedOrderId) {
           setSelectedOrderId(activeOrdersRes.data[0].id);
         }
-      } else {
-        setMockData();
       }
       
       if (transactionsRes.data) {
         setTransactions(transactionsRes.data);
-      } else {
-        setMockData();
       }
       
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Use mock data for development
-      setMockData();
     } finally {
       setLoading(false);
     }
@@ -85,10 +77,9 @@ export default function Dashboard() {
 
   const fetchTripDetails = async (orderId) => {
     try {
-      // Try to fetch real data first
       const [waypointsRes, detailsRes] = await Promise.all([
-        client.get('/dashboard/order-waypoints/', { params: { order_id: orderId } }).catch(() => ({ data: null })),
-        client.get('/dashboard/order-trip-details/', { params: { order_id: orderId } }).catch(() => ({ data: null })),
+        client.get('/dashboard/order-waypoints/', { params: { order_id: orderId } }),
+        client.get('/dashboard/order-trip-details/', { params: { order_id: orderId } }),
       ]);
       
       if (waypointsRes.data) {
@@ -97,103 +88,9 @@ export default function Dashboard() {
       if (detailsRes.data) {
         setTripDetails(detailsRes.data);
       }
-      
-      // If any data is missing, use mock data
-      if (!waypointsRes.data || !detailsRes.data) {
-        setMockTripDetails();
-      }
     } catch (error) {
       console.error('Error fetching trip details:', error);
-      // Use mock data for development
-      setMockTripDetails();
     }
-  };
-
-  const setMockData = () => {
-    setStats({
-      totalOrders: { value: '1,234', delta: 12, deltaDirection: 'up' },
-      totalShipments: { value: '856', delta: 8, deltaDirection: 'up' },
-      revenue: { value: '$45,230', delta: 15, deltaDirection: 'up' },
-      totalExpense: { value: '$12,450', delta: -3, deltaDirection: 'down' },
-    });
-    
-    setActiveOrders([
-      {
-        id: '215485',
-        status: 'in_transit',
-        category: 'Food',
-        pickupDate: '2024-01-15 09:00',
-        pickupAddress: '123 Warehouse St, City',
-        dropoffDate: '2024-01-15 14:00',
-        dropoffAddress: '456 Market Ave, Town',
-      },
-      {
-        id: '215486',
-        status: 'no_connection',
-        category: 'Construction Materials',
-        pickupDate: '2024-01-15 10:30',
-        pickupAddress: '789 Industrial Blvd, Zone',
-        dropoffDate: '2024-01-15 16:30',
-        dropoffAddress: '321 Site Road, Area',
-      },
-      {
-        id: '215487',
-        status: 'idle_timeout',
-        category: 'Beverage',
-        pickupDate: '2024-01-15 08:00',
-        pickupAddress: '555 Factory Lane, Park',
-        dropoffDate: '2024-01-15 12:00',
-        dropoffAddress: '777 Store Street, Mall',
-      },
-    ]);
-    
-    setTransactions([
-      {
-        id: 1,
-        customer: 'John Doe',
-        dateTime: '2024-01-15 14:30',
-        type: 'Shipping',
-        total: '$250.00',
-        status: 'ongoing',
-      },
-      {
-        id: 2,
-        customer: 'Jane Smith',
-        dateTime: '2024-01-15 13:15',
-        type: 'Returns',
-        total: '$75.00',
-        status: 'on_hold',
-      },
-      {
-        id: 3,
-        customer: 'Bob Johnson',
-        dateTime: '2024-01-15 11:45',
-        type: 'Shipping',
-        total: '$180.00',
-        status: 'completed',
-      },
-    ]);
-    
-    setSelectedOrderId('215485');
-  };
-
-  const setMockTripDetails = () => {
-    setWaypoints([
-      { lat: 40.7128, lng: -74.0060, address: '123 Warehouse St, City' },
-      { lat: 40.7308, lng: -73.9970, address: 'En route' },
-      { lat: 40.7580, lng: -73.9855, address: '456 Market Ave, Town' },
-    ]);
-    
-    setTripDetails({
-      driverName: 'John Driver',
-      distance: '45.2 km',
-      experience: '5 years',
-      license: 'DL-12345',
-      idNumber: 'ID-67890',
-      estimation: '2h 15m',
-      weight: '1,200 kg',
-      charge: '$150.00',
-    });
   };
 
   if (loading) {

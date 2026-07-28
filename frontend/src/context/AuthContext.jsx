@@ -37,9 +37,15 @@ export function AuthProvider({ children }) {
     setUser(res.data);
   }
 
-  function logout() {
-    localStorage.removeItem("wb_token");
-    setUser(null);
+  async function logout() {
+    try {
+      await client.post("/auth/logout/");
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.removeItem("wb_token");
+      setUser(null);
+    }
   }
 
   return (

@@ -15,16 +15,9 @@ function Reports() {
   async function loadReports() {
     try {
       setLoading(true);
-      // Mock data for now
-      const mockReports = [
-        { id: 1, name: 'Trip Summary Report', type: 'trips', icon: Truck, lastGenerated: '2024-01-15', status: 'ready' },
-        { id: 2, name: 'Fuel Efficiency Report', type: 'fuel', icon: Fuel, lastGenerated: '2024-01-14', status: 'ready' },
-        { id: 3, name: 'Revenue Report', type: 'revenue', icon: DollarSign, lastGenerated: '2024-01-15', status: 'ready' },
-        { id: 4, name: 'Driver Performance Report', type: 'drivers', icon: Users, lastGenerated: '2024-01-13', status: 'ready' },
-        { id: 5, name: 'Fleet Utilization Report', type: 'fleet', icon: BarChart3, lastGenerated: '2024-01-15', status: 'ready' },
-        { id: 6, name: 'Cost Analysis Report', type: 'costs', icon: TrendingUp, lastGenerated: '2024-01-12', status: 'ready' },
-      ];
-      setReports(mockReports);
+      const response = await client.get('/reports/reports/').catch(() => ({ data: [] }));
+      const reportsData = response.data.results ?? response.data;
+      setReports(reportsData);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {
@@ -34,8 +27,8 @@ function Reports() {
 
   async function generateReport(reportId) {
     try {
-      // Mock report generation
-      console.log('Generating report:', reportId);
+      await client.post(`/reports/reports/${reportId}/generate/`);
+      loadReports();
     } catch (error) {
       console.error('Error generating report:', error);
     }
@@ -43,8 +36,16 @@ function Reports() {
 
   async function downloadReport(reportId) {
     try {
-      // Mock download
-      console.log('Downloading report:', reportId);
+      const response = await client.get(`/reports/reports/${reportId}/download/`, { responseType: 'blob' });
+      // Handle file download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `report_${reportId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading report:', error);
     }
