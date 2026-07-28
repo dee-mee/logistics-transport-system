@@ -475,7 +475,7 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         
         organization = request.user.current_organization
         from orders.models import Shipment
-        from tracking.models import GPSEntry
+        from tracking.models import VehicleLocationPing
         import uuid
         
         try:
@@ -489,18 +489,23 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         except Shipment.DoesNotExist:
             return Response({'error': 'Shipment not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Get GPS entries for this shipment
-        gps_entries = GPSEntry.objects.filter(
-            shipment=shipment
-        ).order_by('timestamp')
-        
-        waypoints = []
-        for entry in gps_entries:
-            waypoints.append({
-                'lat': entry.latitude,
-                'lng': entry.longitude,
-                'address': entry.location_name or f"GPS Point {entry.id}"
-            })
+        # Get GPS entries for this shipment's vehicle
+        try:
+            from dispatch.models import Trip
+            trip = Trip.objects.get(shipment=shipment)
+            gps_entries = VehicleLocationPing.objects.filter(
+                vehicle=trip.vehicle
+            ).order_by('recorded_at')[:10]
+            
+            waypoints = []
+            for entry in gps_entries:
+                waypoints.append({
+                    'lat': float(entry.lat),
+                    'lng': float(entry.lng),
+                    'address': entry.address or f"GPS Point {entry.id}"
+                })
+        except Trip.DoesNotExist:
+            waypoints = []
         
         # If no GPS entries, create mock waypoints from pickup/dropoff
         if not waypoints:

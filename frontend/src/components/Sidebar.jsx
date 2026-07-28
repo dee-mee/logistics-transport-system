@@ -146,34 +146,38 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* User Section */}
-      <div className="p-4 border-t border-white/10">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-medium">
-            {user?.first_name?.[0] || user?.username?.[0] || 'U'}
+      {/* User Section - Integrated into sidebar */}
+      <div className="mt-auto border-t border-white/10">
+        <div className="p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-medium">
+              {user?.first_name?.[0] || user?.username?.[0] || 'U'}
+            </div>
+            <div className="flex-1">
+              <div className="text-white text-sm font-medium">
+                {user?.first_name && user?.last_name 
+                  ? `${user.first_name} ${user.last_name}` 
+                  : user?.username || 'User'}
+              </div>
+              <div className="text-white/60 text-xs capitalize">
+                {user?.role || 'Administrator'}
+              </div>
+            </div>
           </div>
-          <div className="flex-1">
-            <div className="text-white text-sm font-medium">
-              {user?.first_name && user?.last_name 
-                ? `${user.first_name} ${user.last_name}` 
-                : user?.username || 'User'}
-            </div>
-            <div className="text-white/60 text-xs capitalize">
-              {user?.role || 'Administrator'}
-            </div>
+          <div className="space-y-1">
+            <Link
+              to="/profile"
+              className="flex items-center gap-3 px-4 py-2.5 text-white/70 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"
+            >
+              <User size={16} />
+              View Profile
+            </Link>
+            <button className="w-full flex items-center gap-3 px-4 py-2.5 text-white/70 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors">
+              <LogOut size={16} />
+              Logout
+            </button>
           </div>
         </div>
-        <Link
-          to="/profile"
-          className="flex items-center gap-2 px-3 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors"
-        >
-          <User size={16} />
-          View Profile
-        </Link>
-        <button className="w-full flex items-center gap-2 px-3 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-colors mt-1">
-          <LogOut size={16} />
-          Logout
-        </button>
       </div>
     </div>
   );
