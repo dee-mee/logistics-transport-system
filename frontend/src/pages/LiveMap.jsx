@@ -133,14 +133,14 @@ const LiveMap = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10 relative">
+    <div className="h-full flex flex-col relative">
+      {/* Filter Controls Bar */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-3 flex items-center justify-between z-10 relative">
         <div className="flex items-center gap-4">
           <div className="text-2xl">🗺️</div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Live Fleet Map</h1>
-            <p className="text-sm text-gray-600">Real-time GPS tracking of your fleet vehicles</p>
+            <h1 className="text-lg font-bold text-gray-900">Live Fleet Map</h1>
+            <p className="text-xs text-gray-600">Real-time GPS tracking of your fleet vehicles</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -238,7 +238,7 @@ const LiveMap = () => {
       </div>
       
       {/* Full Page Map */}
-      <div className="flex-1 relative min-h-[400px] rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 80px)' }}>
+      <div className="flex-1 relative min-h-[400px]">
         <MapContainer
           center={mapCenter}
           zoom={mapZoom}
@@ -286,7 +286,7 @@ const LiveMap = () => {
         
         {/* Floating Vehicle List Panel */}
         {filteredVehicles.length > 0 && (
-          <div className="absolute top-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-[calc(100vh-120px)] overflow-hidden">
+          <div className="absolute top-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-[calc(100vh-200px)] overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#1e3a8a]/10 to-blue-100">
               <h3 className="font-semibold text-gray-800">Fleet Vehicles</h3>
               <span className="text-xs bg-[#1e3a8a] text-white px-2 py-1 rounded-full">

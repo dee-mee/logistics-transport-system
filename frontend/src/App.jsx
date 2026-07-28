@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import AppShell from "./components/AppShell";
+import LiveMapLayout from "./components/LiveMapLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Shipments from "./pages/Shipments";
@@ -32,6 +33,16 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route
+        path="/live-map"
+        element={
+          <PrivateRoute>
+            <LiveMapLayout />
+          </PrivateRoute>
+        }
+      >
+        <Route index element={<LiveMap />} />
+      </Route>
+      <Route
         path="/"
         element={
           <PrivateRoute>
@@ -44,7 +55,6 @@ function AppRoutes() {
         <Route path="shipments" element={<Shipments />} />
         <Route path="fleet" element={<Fleet />} />
         <Route path="trips" element={<Trips />} />
-        <Route path="live-map" element={<LiveMap />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="fuel" element={<FuelManagement />} />
         <Route path="maintenance" element={<Maintenance />} />
