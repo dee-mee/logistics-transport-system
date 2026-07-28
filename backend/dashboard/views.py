@@ -346,7 +346,7 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         
         # Calculate revenue from actual shipment costs
         total_revenue = Shipment.objects.filter(organization=organization).aggregate(
-            total=Sum('estimated_cost')
+            total=Sum('price')
         )['total'] or 0
         
         # Calculate expenses (fuel costs)
@@ -380,12 +380,12 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         week_ago_revenue = Shipment.objects.filter(
             organization=organization,
             created_at__gte=week_ago
-        ).aggregate(total=Sum('estimated_cost'))['total'] or 0
+        ).aggregate(total=Sum('price'))['total'] or 0
         two_weeks_ago_revenue = Shipment.objects.filter(
             organization=organization,
             created_at__gte=two_weeks_ago,
             created_at__lt=week_ago
-        ).aggregate(total=Sum('estimated_cost'))['total'] or 0
+        ).aggregate(total=Sum('price'))['total'] or 0
         revenue_delta = 0
         if two_weeks_ago_revenue > 0:
             revenue_delta = ((week_ago_revenue - two_weeks_ago_revenue) / two_weeks_ago_revenue) * 100
@@ -454,11 +454,11 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             orders.append({
                 'id': str(shipment.id),
                 'status': status,
-                'category': shipment.category or 'General',
-                'pickupDate': shipment.pickup_scheduled_time.strftime('%Y-%m-%d %H:%M') if shipment.pickup_scheduled_time else 'TBD',
-                'pickupAddress': f"{shipment.pickup_address}, {shipment.pickup_city}" if shipment.pickup_address else 'Unknown',
-                'dropoffDate': shipment.dropoff_scheduled_time.strftime('%Y-%m-%d %H:%M') if shipment.dropoff_scheduled_time else 'TBD',
-                'dropoffAddress': f"{shipment.dropoff_address}, {shipment.dropoff_city}" if shipment.dropoff_address else 'Unknown',
+                'category': shipment.cargo_description or 'General',
+                'pickupDate': shipment.pickup_window_start.strftime('%Y-%m-%d %H:%M') if shipment.pickup_window_start else 'TBD',
+                'pickupAddress': shipment.pickup_address or 'Unknown',
+                'dropoffDate': shipment.pickup_window_end.strftime('%Y-%m-%d %H:%M') if shipment.pickup_window_end else 'TBD',
+                'dropoffAddress': shipment.dropoff_address or 'Unknown',
             })
         
         return Response(orders)
@@ -475,7 +475,7 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         # Get recent shipments as transactions
         recent_shipments = Shipment.objects.filter(
             organization=organization
-        ).order_by('-created_at')[:3]
+        ).select_related('customer').order_by('-created_at')[:3]
         
         for shipment in recent_shipments:
             status_map = {
@@ -487,10 +487,10 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             
             transactions.append({
                 'id': shipment.id,
-                'customer': shipment.customer_name if hasattr(shipment, 'customer_name') else 'Unknown',
+                'customer': shipment.customer.company_name if shipment.customer and shipment.customer.company_name else (shipment.customer.contact_name if shipment.customer else 'Unknown'),
                 'dateTime': shipment.created_at.strftime('%Y-%m-%d %H:%M'),
                 'type': 'Shipping',
-                'total': f'${shipment.estimated_cost:,.2f}' if hasattr(shipment, 'estimated_cost') else '$0.00',
+                'total': f'${shipment.price:,.2f}' if shipment.price else '$0.00',
                 'status': status_map.get(shipment.status, 'unknown')
             })
         
@@ -566,10 +566,10 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         try:
             trip = Trip.objects.get(shipment=shipment)
             driver_name = trip.driver.user.get_full_name() if trip.driver else 'Unassigned'
-            distance = f"{trip.estimated_distance_km} km" if trip.estimated_distance_km else 'Unknown'
-            estimation = f"{trip.estimated_duration_hours}h" if trip.estimated_duration_hours else 'Unknown'
-            experience = f"{trip.driver.years_experience} years" if trip.driver and hasattr(trip.driver, 'years_experience') else 'Unknown'
-            license = trip.driver.license_number if trip.driver and hasattr(trip.driver, 'license_number') else 'Unknown'
+            distance = 'Unknown'  # Would need distance calculation
+            estimation = 'Unknown'  # Would need duration calculation
+            experience = 'Unknown'  # Driver experience field not available
+            license = 'Unknown'  # Driver license field not available
         except Trip.DoesNotExist:
             driver_name = 'Unassigned'
             distance = 'Unknown'
@@ -584,8 +584,8 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             'license': license,
             'idNumber': str(shipment.id),
             'estimation': estimation,
-            'weight': f'{shipment.weight_kg} kg' if hasattr(shipment, 'weight_kg') else 'Unknown',
-            'charge': f'${shipment.estimated_cost:,.2f}' if hasattr(shipment, 'estimated_cost') else '$0.00'
+            'weight': f'{shipment.weight_kg} kg' if shipment.weight_kg else 'Unknown',
+            'charge': f'${shipment.price:,.2f}' if shipment.price else '$0.00'
         })
     
     @action(detail=False, methods=['get'])
@@ -907,30 +907,17 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             total=Sum('quantity_liters')
         )['total'] or 0
         
-        # Calculate average consumption based on trip distances
-        total_distance = Trip.objects.filter(
-            vehicle__organization=organization,
-            actual_distance_km__isnull=False
-        ).aggregate(total=Sum('actual_distance_km'))['total'] or 0
+        # Calculate average consumption (not available without distance fields)
         avg_consumption = 0
-        if total_distance > 0 and total_fuel > 0:
-            avg_consumption = (total_fuel / total_distance) * 100  # L/100km
         
         # Revenue from completed shipments
         total_revenue = Shipment.objects.filter(
             organization=organization,
             status=Shipment.Status.DELIVERED
-        ).aggregate(total=Sum('estimated_cost'))['total'] or 0
+        ).aggregate(total=Sum('price'))['total'] or 0
         
-        # On-time delivery rate (based on actual vs estimated delivery time)
-        on_time_shipments = Shipment.objects.filter(
-            organization=organization,
-            status=Shipment.Status.DELIVERED,
-            actual_delivery_time__lte=F('estimated_delivery_time')
-        ).count()
+        # On-time delivery rate (not available without delivery time fields)
         on_time_rate = 0
-        if completed > 0:
-            on_time_rate = (on_time_shipments / completed) * 100
         
         return {
             'total_vehicles': total_vehicles,
