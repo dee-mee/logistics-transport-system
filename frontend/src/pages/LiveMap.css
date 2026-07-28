@@ -2,6 +2,7 @@
   font-family: inherit;
   height: 100%;
   width: 100%;
+  z-index: 1;
 }
 
 .custom-marker {
@@ -12,6 +13,7 @@
 .leaflet-popup-content-wrapper {
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1001;
 }
 
 .leaflet-popup-content {
@@ -26,6 +28,7 @@
 .leaflet-control-zoom {
   border: 2px solid rgba(0, 0, 0, 0.2);
   border-radius: 4px;
+  z-index: 1001;
 }
 
 .leaflet-control-zoom a {

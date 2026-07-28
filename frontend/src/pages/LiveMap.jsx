@@ -160,7 +160,7 @@ const LiveMap = () => {
             </button>
             
             {showFilterDropdown && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+              <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-[9999]">
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-800 mb-3">Filters</h3>
                   <div className="space-y-3">
@@ -286,7 +286,7 @@ const LiveMap = () => {
         
         {/* Floating Vehicle List Panel */}
         {filteredVehicles.length > 0 && (
-          <div className="absolute top-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-[calc(100vh-200px)] overflow-hidden">
+          <div className="absolute top-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200 max-h-[calc(100vh-200px)] overflow-hidden z-[1000]">
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#1e3a8a]/10 to-blue-100">
               <h3 className="font-semibold text-gray-800">Fleet Vehicles</h3>
               <span className="text-xs bg-[#1e3a8a] text-white px-2 py-1 rounded-full">
@@ -344,7 +344,7 @@ const LiveMap = () => {
         
         {/* Selected Vehicle Details Panel */}
         {selectedVehicle && (
-          <div className="absolute bottom-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200">
+          <div className="absolute bottom-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-[1000]">
             <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-[#1e3a8a]/10 to-blue-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Vehicle Details</h3>
               <button
