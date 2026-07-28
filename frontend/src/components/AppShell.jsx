@@ -1,64 +1,37 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, Package, Truck, Route, LogOut, Map, AlertTriangle, Fuel, Wrench } from "lucide-react";
+import { Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-
-const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/shipments", label: "Shipments", icon: Package },
-  { to: "/fleet", label: "Fleet", icon: Truck },
-  { to: "/trips", label: "Trips", icon: Route },
-  { to: "/live-map", label: "Live Map", icon: Map },
-  { to: "/alerts", label: "Alerts", icon: AlertTriangle },
-  { to: "/fuel", label: "Fuel", icon: Fuel },
-  { to: "/maintenance", label: "Maintenance", icon: Wrench },
-];
+import Sidebar from "./Sidebar";
+import NotificationDropdown from "./NotificationDropdown";
+import ProfileDropdown from "./ProfileDropdown";
 
 export default function AppShell() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   return (
-    <div className="flex min-h-screen bg-paper">
-      <aside className="w-60 shrink-0 bg-ink text-white flex flex-col">
-        <div className="px-6 py-6 border-b border-white/10">
-          <div className="font-display font-semibold text-lg tracking-tight">Waybill</div>
-          <div className="text-xs text-white/40 mt-0.5">Logistics Ops</div>
-        </div>
-        <nav className="px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`
-              }
-            >
-              <Icon size={17} strokeWidth={2} />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="px-3 py-4 border-t border-white/10">
-          <div className="px-3 py-2 text-sm">
-            <div className="font-medium">{user?.username}</div>
-            <div className="text-xs text-white/40 capitalize">{user?.role}</div>
+    <div className="flex min-h-screen bg-gray-100">
+      {/* Fixed Sidebar with new design */}
+      <Sidebar />
+      
+      {/* Main Content Area */}
+      <div className="flex-1 ml-[256px] flex flex-col">
+        {/* Blue Top Navbar */}
+        <div className="bg-[#1e3a8a] text-white px-6 py-4 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-semibold">Ascent Transport</h1>
           </div>
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white transition-colors"
-          >
-            <LogOut size={17} strokeWidth={2} />
-            Sign out
-          </button>
+          <div className="flex items-center gap-4">
+            <NotificationDropdown />
+            <ProfileDropdown user={user} />
+          </div>
         </div>
-      </aside>
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-8 py-8">
-          <Outlet />
+        
+        {/* Content Area */}
+        <div className="flex-1 p-6">
+          <div className="bg-white shadow-card p-8 min-h-[calc(100vh-120px)] rounded-none">
+            <Outlet />
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import uuid
 from django.db import models
-from organizations.models import Organization
-from fleet.models import Vehicle, Driver
+from django.conf import settings
 
 
 class FuelTransaction(models.Model):
@@ -20,9 +19,9 @@ class FuelTransaction(models.Model):
         GAS = "gas", "Gas"
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='fuel_transactions')
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='fuel_transactions')
-    driver = models.ForeignKey(Driver, on_delete=models.SET_NULL, null=True, blank=True, related_name='fuel_transactions')
+    organization = models.ForeignKey('organizations.Organization', on_delete=models.CASCADE, related_name='fuel_transactions', null=True, blank=True)
+    vehicle = models.ForeignKey('fleet.Vehicle', on_delete=models.CASCADE, related_name='fuel_transactions')
+    driver = models.ForeignKey('fleet.Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name='fuel_transactions')
     
     transaction_type = models.CharField(max_length=20, choices=TransactionType.choices)
     fuel_type = models.CharField(max_length=20, choices=FuelType.choices)
@@ -72,7 +71,7 @@ class FuelCard(models.Model):
         EXPIRED = "expired", "Expired"
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='fuel_cards')
+    organization = models.ForeignKey('organizations.Organization', on_delete=models.CASCADE, related_name='fuel_cards', null=True, blank=True)
     card_number = models.CharField(max_length=50, unique=True)
     card_type = models.CharField(max_length=20, choices=CardType.choices)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
@@ -80,7 +79,7 @@ class FuelCard(models.Model):
     provider = models.CharField(max_length=100, blank=True)
     cardholder_name = models.CharField(max_length=200, blank=True)
     
-    vehicles = models.ManyToManyField(Vehicle, related_name='fuel_cards', blank=True)
+    vehicles = models.ManyToManyField('fleet.Vehicle', related_name='fuel_cards', blank=True)
     
     daily_limit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     weekly_limit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -105,8 +104,8 @@ class FuelConsumption(models.Model):
     """Tracks fuel consumption metrics for vehicles."""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='fuel_consumption')
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='fuel_consumption_records')
+    organization = models.ForeignKey('organizations.Organization', on_delete=models.CASCADE, related_name='fuel_consumption', null=True, blank=True)
+    vehicle = models.ForeignKey('fleet.Vehicle', on_delete=models.CASCADE, related_name='fuel_consumption_records')
     
     period_start = models.DateField()
     period_end = models.DateField()
@@ -148,8 +147,8 @@ class FuelAlert(models.Model):
         CRITICAL = "critical", "Critical"
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='fuel_alerts')
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='fuel_alerts', null=True, blank=True)
+    organization = models.ForeignKey('organizations.Organization', on_delete=models.CASCADE, related_name='fuel_alerts', null=True, blank=True)
+    vehicle = models.ForeignKey('fleet.Vehicle', on_delete=models.CASCADE, related_name='fuel_alerts', null=True, blank=True)
     fuel_card = models.ForeignKey(FuelCard, on_delete=models.CASCADE, related_name='alerts', null=True, blank=True)
     
     alert_type = models.CharField(max_length=30, choices=AlertType.choices)
@@ -163,7 +162,7 @@ class FuelAlert(models.Model):
     
     is_resolved = models.BooleanField(default=False)
     resolved_at = models.DateTimeField(null=True, blank=True)
-    resolved_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     resolution_notes = models.TextField(blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)

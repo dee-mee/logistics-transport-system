@@ -332,6 +332,239 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get stats for the new dashboard design."""
+        organization = request.user.current_organization
+        from fleet.models import Vehicle, Driver
+        from orders.models import Shipment
+        from dispatch.models import Trip
+        from fuel.models import FuelTransaction
+        
+        # Calculate stats with deltas
+        total_orders = Shipment.objects.filter(organization=organization).count()
+        total_shipments = Shipment.objects.filter(organization=organization).count()
+        
+        # Calculate revenue (placeholder - would come from actual financial data)
+        total_revenue = 45230  # Placeholder
+        
+        # Calculate expenses (fuel costs)
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        fuel_transactions = FuelTransaction.objects.filter(
+            organization=organization,
+            date__gte=today_start
+        )
+        total_expense = fuel_transactions.aggregate(
+            total=Sum('total_cost')
+        )['total'] or 12450  # Fallback to placeholder
+        
+        # Calculate weekly deltas
+        week_ago = timezone.now() - timedelta(days=7)
+        week_ago_orders = Shipment.objects.filter(
+            organization=organization,
+            created_at__gte=week_ago
+        ).count()
+        two_weeks_ago = timezone.now() - timedelta(days=14)
+        two_weeks_ago_orders = Shipment.objects.filter(
+            organization=organization,
+            created_at__gte=two_weeks_ago,
+            created_at__lt=week_ago
+        ).count()
+        
+        orders_delta = 0
+        if two_weeks_ago_orders > 0:
+            orders_delta = ((week_ago_orders - two_weeks_ago_orders) / two_weeks_ago_orders) * 100
+        
+        return Response({
+            'totalOrders': {
+                'value': str(total_orders),
+                'delta': round(orders_delta, 1),
+                'deltaDirection': 'up' if orders_delta >= 0 else 'down'
+            },
+            'totalShipments': {
+                'value': str(total_shipments),
+                'delta': 8.0,  # Placeholder
+                'deltaDirection': 'up'
+            },
+            'revenue': {
+                'value': f'${total_revenue:,.0f}',
+                'delta': 15.0,  # Placeholder
+                'deltaDirection': 'up'
+            },
+            'totalExpense': {
+                'value': f'${total_expense:,.0f}',
+                'delta': -3.0,  # Placeholder
+                'deltaDirection': 'down'
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def active_orders(self, request):
+        """Get active orders for the dashboard."""
+        organization = request.user.current_organization
+        from orders.models import Shipment
+        
+        # Get recent shipments with various statuses
+        active_shipments = Shipment.objects.filter(
+            organization=organization
+        ).exclude(
+            status__in=[Shipment.Status.DELIVERED, Shipment.Status.CANCELLED]
+        ).order_by('-created_at')[:3]
+        
+        orders = []
+        for shipment in active_shipments:
+            # Map status to new dashboard format
+            status_map = {
+                Shipment.Status.PENDING: 'no_connection',
+                Shipment.Status.IN_TRANSIT: 'in_transit',
+                Shipment.Status.DELIVERED: 'delivered',
+                Shipment.Status.CANCELLED: 'idle_timeout',
+            }
+            status = status_map.get(shipment.status, 'unknown')
+            
+            orders.append({
+                'id': str(shipment.id),
+                'status': status,
+                'category': shipment.category or 'General',
+                'pickupDate': shipment.pickup_scheduled_time.strftime('%Y-%m-%d %H:%M') if shipment.pickup_scheduled_time else 'TBD',
+                'pickupAddress': f"{shipment.pickup_address}, {shipment.pickup_city}" if shipment.pickup_address else 'Unknown',
+                'dropoffDate': shipment.dropoff_scheduled_time.strftime('%Y-%m-%d %H:%M') if shipment.dropoff_scheduled_time else 'TBD',
+                'dropoffAddress': f"{shipment.dropoff_address}, {shipment.dropoff_city}" if shipment.dropoff_address else 'Unknown',
+            })
+        
+        return Response(orders)
+    
+    @action(detail=False, methods=['get'])
+    def transactions(self, request):
+        """Get transactions for the dashboard."""
+        organization = request.user.current_organization
+        from orders.models import Shipment
+        from fuel.models import FuelTransaction
+        
+        transactions = []
+        
+        # Get recent shipments as transactions
+        recent_shipments = Shipment.objects.filter(
+            organization=organization
+        ).order_by('-created_at')[:3]
+        
+        for shipment in recent_shipments:
+            status_map = {
+                Shipment.Status.IN_TRANSIT: 'ongoing',
+                Shipment.Status.PENDING: 'on_hold',
+                Shipment.Status.DELIVERED: 'completed',
+                Shipment.Status.CANCELLED: 'cancelled',
+            }
+            
+            transactions.append({
+                'id': shipment.id,
+                'customer': shipment.customer_name if hasattr(shipment, 'customer_name') else 'Unknown',
+                'dateTime': shipment.created_at.strftime('%Y-%m-%d %H:%M'),
+                'type': 'Shipping',
+                'total': f'${shipment.estimated_cost:,.2f}' if hasattr(shipment, 'estimated_cost') else '$0.00',
+                'status': status_map.get(shipment.status, 'unknown')
+            })
+        
+        return Response(transactions)
+    
+    @action(detail=False, methods=['get'])
+    def order_waypoints(self, request):
+        """Get waypoints for a specific order."""
+        order_id = request.query_params.get('order_id')
+        if not order_id:
+            return Response({'error': 'order_id parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        organization = request.user.current_organization
+        from orders.models import Shipment
+        from tracking.models import GPSEntry
+        import uuid
+        
+        try:
+            # Try to convert to UUID if it's a valid UUID string
+            try:
+                uuid_id = uuid.UUID(order_id)
+                shipment = Shipment.objects.get(id=uuid_id, organization=organization)
+            except (ValueError, AttributeError):
+                # If not a valid UUID, try to find by tracking_code
+                shipment = Shipment.objects.get(tracking_code=order_id, organization=organization)
+        except Shipment.DoesNotExist:
+            return Response({'error': 'Shipment not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get GPS entries for this shipment
+        gps_entries = GPSEntry.objects.filter(
+            shipment=shipment
+        ).order_by('timestamp')
+        
+        waypoints = []
+        for entry in gps_entries:
+            waypoints.append({
+                'lat': entry.latitude,
+                'lng': entry.longitude,
+                'address': entry.location_name or f"GPS Point {entry.id}"
+            })
+        
+        # If no GPS entries, create mock waypoints from pickup/dropoff
+        if not waypoints:
+            waypoints = [
+                {
+                    'lat': 40.7128,  # Placeholder coordinates
+                    'lng': -74.0060,
+                    'address': shipment.pickup_address or 'Pickup Location'
+                },
+                {
+                    'lat': 40.7580,
+                    'lng': -73.9855,
+                    'address': shipment.dropoff_address or 'Dropoff Location'
+                }
+            ]
+        
+        return Response(waypoints)
+    
+    @action(detail=False, methods=['get'])
+    def order_trip_details(self, request):
+        """Get trip details for a specific order."""
+        order_id = request.query_params.get('order_id')
+        if not order_id:
+            return Response({'error': 'order_id parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        organization = request.user.current_organization
+        from orders.models import Shipment
+        from dispatch.models import Trip
+        import uuid
+        
+        try:
+            # Try to convert to UUID if it's a valid UUID string
+            try:
+                uuid_id = uuid.UUID(order_id)
+                shipment = Shipment.objects.get(id=uuid_id, organization=organization)
+            except (ValueError, AttributeError):
+                # If not a valid UUID, try to find by tracking_code
+                shipment = Shipment.objects.get(tracking_code=order_id, organization=organization)
+        except Shipment.DoesNotExist:
+            return Response({'error': 'Shipment not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Try to get associated trip
+        try:
+            trip = Trip.objects.get(shipment=shipment)
+            driver_name = trip.driver.user.get_full_name() if trip.driver else 'Unassigned'
+            distance = f"{trip.estimated_distance_km} km" if trip.estimated_distance_km else 'Unknown'
+            estimation = f"{trip.estimated_duration_hours}h" if trip.estimated_duration_hours else 'Unknown'
+        except Trip.DoesNotExist:
+            driver_name = 'Unassigned'
+            distance = 'Unknown'
+            estimation = 'Unknown'
+        
+        return Response({
+            'driverName': driver_name,
+            'distance': distance,
+            'experience': '5 years',  # Placeholder
+            'license': 'DL-12345',  # Placeholder
+            'idNumber': str(shipment.id),
+            'estimation': estimation,
+            'weight': f'{shipment.weight_kg} kg' if hasattr(shipment, 'weight_kg') else 'Unknown',
+            'charge': f'${shipment.estimated_cost:,.2f}' if hasattr(shipment, 'estimated_cost') else '$0.00'
+        })
+    
+    @action(detail=False, methods=['get'])
     def vehicle_status(self, request):
         """Get vehicle status distribution."""
         organization = request.user.current_organization

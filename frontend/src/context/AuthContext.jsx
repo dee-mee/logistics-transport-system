@@ -32,13 +32,18 @@ export function AuthProvider({ children }) {
     setUser(res.data.user);
   }
 
+  async function refreshUser() {
+    const res = await client.get("/auth/me/");
+    setUser(res.data);
+  }
+
   function logout() {
     localStorage.removeItem("wb_token");
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

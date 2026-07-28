@@ -4,6 +4,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        // New design tokens based on specification
+        navy: {
+          DEFAULT: "#0f1a3c",
+          dark: "#14213d",
+        },
+        accent: {
+          DEFAULT: "#2f5fe3",
+          light: "#e8f0ff",
+        },
+        background: "#8b95a8",
+        // Status colors
+        status: {
+          green: "#10b981",
+          greenLight: "#d1fae5",
+          amber: "#f59e0b",
+          amberLight: "#fef3c7",
+          red: "#ef4444",
+          redLight: "#fee2e2",
+          gray: "#6b7280",
+          grayLight: "#f3f4f6",
+        },
+        // Keep existing colors for compatibility
         ink: {
           DEFAULT: "#12161C",
           800: "#1B2129",
@@ -28,6 +50,14 @@ export default {
         display: ["'Space Grotesk'", "sans-serif"],
         body: ["'Inter'", "sans-serif"],
         mono: ["'JetBrains Mono'", "monospace"],
+      },
+      borderRadius: {
+        'xl': '12px',
+        '2xl': '16px',
+      },
+      boxShadow: {
+        'card': '0 2px 8px rgba(0, 0, 0, 0.08)',
+        'card-hover': '0 4px 16px rgba(0, 0, 0, 0.12)',
       },
     },
   },

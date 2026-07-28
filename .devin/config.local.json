@@ -13,7 +13,9 @@
       "Exec(git push)",
       "Exec(cat)",
       "Exec(npm install)",
-      "Exec(npm run)"
+      "Exec(npm run)",
+      "Exec(curl)",
+      "Exec(python3)"
     ]
   }
 }

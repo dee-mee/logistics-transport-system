@@ -3,6 +3,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import viewsets
 from .serializers import UserSerializer, RegisterSerializer
 
 User = get_user_model()
@@ -43,3 +44,22 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class ProfileView(generics.RetrieveUpdateAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Only allow admins to see all users, non-admins see only themselves
+        if self.request.user.is_staff or self.request.user.role == 'admin':
+            return User.objects.all()
+        return User.objects.filter(id=self.request.user.id)

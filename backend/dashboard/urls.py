@@ -21,4 +21,10 @@ urlpatterns = [
     path('metrics/activity-feed/', DashboardMetricsViewSet.as_view({'get': 'activity_feed'}), name='activity-feed'),
     path('metrics/alerts/', DashboardMetricsViewSet.as_view({'get': 'alerts'}), name='alerts'),
     path('metrics/fuel-trend/', DashboardMetricsViewSet.as_view({'get': 'fuel_trend'}), name='fuel-trend'),
+    # New dashboard endpoints
+    path('stats/', DashboardMetricsViewSet.as_view({'get': 'stats'}), name='dashboard-stats'),
+    path('active-orders/', DashboardMetricsViewSet.as_view({'get': 'active_orders'}), name='active-orders'),
+    path('transactions/', DashboardMetricsViewSet.as_view({'get': 'transactions'}), name='transactions'),
+    path('order-waypoints/', DashboardMetricsViewSet.as_view({'get': 'order_waypoints'}), name='order-waypoints'),
+    path('order-trip-details/', DashboardMetricsViewSet.as_view({'get': 'order_trip_details'}), name='order-trip-details'),
 ]

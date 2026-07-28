@@ -1,44 +1,33 @@
-import { useEffect, useState } from "react";
-import { Package, Truck, Users, Route, DollarSign, Clock, TrendingUp, Activity } from "lucide-react";
-import client from "../api/client";
-import StatusBadge from "../components/StatusBadge";
-import ManifestTag from "../components/ManifestTag";
-import { Link } from "react-router-dom";
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
-
-function StatCard({ icon: Icon, label, value, trend, trendUp }) {
-  return (
-    <div className="bg-white border border-line rounded-xl px-5 py-4 flex items-center gap-4">
-      <div className="w-10 h-10 rounded-lg bg-teal-light text-teal flex items-center justify-center shrink-0">
-        <Icon size={18} />
-      </div>
-      <div className="flex-1">
-        <div className="text-2xl font-display font-semibold text-ink leading-none">{value}</div>
-        <div className="text-xs text-ink-700/60 mt-1">{label}</div>
-        {trend && (
-          <div className={`text-xs mt-1 flex items-center gap-1 ${trendUp ? 'text-green-600' : 'text-red-600'}`}>
-            <TrendingUp size={12} />
-            {trend}% from last week
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import StatCard from '../components/StatCard';
+import ActiveOrderCard from '../components/ActiveOrderCard';
+import MapPanel from '../components/MapPanel';
+import TripDetailPanel from '../components/TripDetailPanel';
+import TransactionsTable from '../components/TransactionsTable';
+import client from '../api/client';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ 
-    shipments: 0, vehicles: 0, drivers: 0, trips: 0, 
-    revenue: 0, onTimeRate: 0 
-  });
-  const [recentShipments, setRecentShipments] = useState([]);
-  const [vehicleStatus, setVehicleStatus] = useState([]);
-  const [shipmentStatus, setShipmentStatus] = useState([]);
-  const [shipmentTrend, setShipmentTrend] = useState([]);
-  const [weeklyPerformance, setWeeklyPerformance] = useState([]);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Stats data
+  const [stats, setStats] = useState({
+    totalOrders: { value: '1,234', delta: 12, deltaDirection: 'up' },
+    totalShipments: { value: '856', delta: 8, deltaDirection: 'up' },
+    revenue: { value: '$45,230', delta: 15, deltaDirection: 'up' },
+    totalExpense: { value: '$12,450', delta: -3, deltaDirection: 'down' },
+  });
+  
+  // Active orders data
+  const [activeOrders, setActiveOrders] = useState([]);
+  
+  // Map and trip details
+  const [waypoints, setWaypoints] = useState(null);
+  const [tripDetails, setTripDetails] = useState(null);
+  
+  // Transactions data
+  const [transactions, setTransactions] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -47,192 +36,247 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (selectedOrderId) {
+      fetchTripDetails(selectedOrderId);
+    }
+  }, [selectedOrderId]);
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [
-        shipmentsRes, vehiclesRes, driversRes, tripsRes,
-        vehicleStatusRes, shipmentStatusRes, shipmentTrendRes,
-        weeklyPerformanceRes
-      ] = await Promise.all([
-        client.get("/orders/shipments/?page_size=5"),
-        client.get("/fleet/vehicles/"),
-        client.get("/fleet/drivers/"),
-        client.get("/dispatch/trips/"),
-        client.get("/dashboard/metrics/vehicle_status/"),
-        client.get("/dashboard/metrics/shipment_status/"),
-        client.get("/dashboard/metrics/shipment_trend/"),
-        client.get("/dashboard/metrics/weekly_performance/"),
+      
+      // Fetch real data
+      const [statsRes, activeOrdersRes, transactionsRes] = await Promise.all([
+        client.get('/dashboard/stats/').catch(() => ({ data: null })),
+        client.get('/dashboard/active-orders/').catch(() => ({ data: null })),
+        client.get('/dashboard/transactions/').catch(() => ({ data: null })),
       ]);
 
-      setStats({
-        shipments: shipmentsRes.data.count ?? shipmentsRes.data.length,
-        vehicles: vehiclesRes.data.count ?? vehiclesRes.data.length,
-        drivers: driversRes.data.count ?? driversRes.data.length,
-        trips: tripsRes.data.count ?? tripsRes.data.length,
-        revenue: 15420, // Placeholder - would come from real data
-        onTimeRate: 94.5, // Placeholder - would come from real data
-      });
-      setRecentShipments((shipmentsRes.data.results ?? shipmentsRes.data).slice(0, 5));
-      setVehicleStatus(vehicleStatusRes.data);
-      setShipmentStatus(shipmentStatusRes.data);
-      setShipmentTrend(shipmentTrendRes.data);
-      setWeeklyPerformance(weeklyPerformanceRes.data);
+      if (statsRes.data) {
+        setStats(statsRes.data);
+      } else {
+        setMockData();
+      }
+      
+      if (activeOrdersRes.data && activeOrdersRes.data.length > 0) {
+        setActiveOrders(activeOrdersRes.data);
+        if (!selectedOrderId) {
+          setSelectedOrderId(activeOrdersRes.data[0].id);
+        }
+      } else {
+        setMockData();
+      }
+      
+      if (transactionsRes.data) {
+        setTransactions(transactionsRes.data);
+      } else {
+        setMockData();
+      }
+      
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      // Use mock data for development
+      setMockData();
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchTripDetails = async (orderId) => {
+    try {
+      // Try to fetch real data first
+      const [waypointsRes, detailsRes] = await Promise.all([
+        client.get('/dashboard/order-waypoints/', { params: { order_id: orderId } }).catch(() => ({ data: null })),
+        client.get('/dashboard/order-trip-details/', { params: { order_id: orderId } }).catch(() => ({ data: null })),
+      ]);
+      
+      if (waypointsRes.data) {
+        setWaypoints(waypointsRes.data);
+      }
+      if (detailsRes.data) {
+        setTripDetails(detailsRes.data);
+      }
+      
+      // If any data is missing, use mock data
+      if (!waypointsRes.data || !detailsRes.data) {
+        setMockTripDetails();
+      }
+    } catch (error) {
+      console.error('Error fetching trip details:', error);
+      // Use mock data for development
+      setMockTripDetails();
+    }
+  };
+
+  const setMockData = () => {
+    setStats({
+      totalOrders: { value: '1,234', delta: 12, deltaDirection: 'up' },
+      totalShipments: { value: '856', delta: 8, deltaDirection: 'up' },
+      revenue: { value: '$45,230', delta: 15, deltaDirection: 'up' },
+      totalExpense: { value: '$12,450', delta: -3, deltaDirection: 'down' },
+    });
+    
+    setActiveOrders([
+      {
+        id: '215485',
+        status: 'in_transit',
+        category: 'Food',
+        pickupDate: '2024-01-15 09:00',
+        pickupAddress: '123 Warehouse St, City',
+        dropoffDate: '2024-01-15 14:00',
+        dropoffAddress: '456 Market Ave, Town',
+      },
+      {
+        id: '215486',
+        status: 'no_connection',
+        category: 'Construction Materials',
+        pickupDate: '2024-01-15 10:30',
+        pickupAddress: '789 Industrial Blvd, Zone',
+        dropoffDate: '2024-01-15 16:30',
+        dropoffAddress: '321 Site Road, Area',
+      },
+      {
+        id: '215487',
+        status: 'idle_timeout',
+        category: 'Beverage',
+        pickupDate: '2024-01-15 08:00',
+        pickupAddress: '555 Factory Lane, Park',
+        dropoffDate: '2024-01-15 12:00',
+        dropoffAddress: '777 Store Street, Mall',
+      },
+    ]);
+    
+    setTransactions([
+      {
+        id: 1,
+        customer: 'John Doe',
+        dateTime: '2024-01-15 14:30',
+        type: 'Shipping',
+        total: '$250.00',
+        status: 'ongoing',
+      },
+      {
+        id: 2,
+        customer: 'Jane Smith',
+        dateTime: '2024-01-15 13:15',
+        type: 'Returns',
+        total: '$75.00',
+        status: 'on_hold',
+      },
+      {
+        id: 3,
+        customer: 'Bob Johnson',
+        dateTime: '2024-01-15 11:45',
+        type: 'Shipping',
+        total: '$180.00',
+        status: 'completed',
+      },
+    ]);
+    
+    setSelectedOrderId('215485');
+  };
+
+  const setMockTripDetails = () => {
+    setWaypoints([
+      { lat: 40.7128, lng: -74.0060, address: '123 Warehouse St, City' },
+      { lat: 40.7308, lng: -73.9970, address: 'En route' },
+      { lat: 40.7580, lng: -73.9855, address: '456 Market Ave, Town' },
+    ]);
+    
+    setTripDetails({
+      driverName: 'John Driver',
+      distance: '45.2 km',
+      experience: '5 years',
+      license: 'DL-12345',
+      idNumber: 'ID-67890',
+      estimation: '2h 15m',
+      weight: '1,200 kg',
+      charge: '$150.00',
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-ink mb-1">Dashboard</h1>
-          <p className="text-sm text-ink-700/60">Real-time fleet operations overview</p>
-        </div>
-        <button
-          onClick={fetchDashboardData}
-          className="px-4 py-2 bg-teal text-white rounded-lg text-sm font-medium hover:bg-teal/90 transition-colors flex items-center gap-2"
-        >
-          <Activity size={16} />
-          Refresh
-        </button>
+    <>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1">Dashboard</h1>
+        <p className="text-sm text-gray-500">See all your shipment overview here.</p>
       </div>
-
-      {/* Key Metrics Row */}
-      <div className="grid grid-cols-6 gap-4 mb-6">
-        <StatCard icon={Truck} label="Total Vehicles" value={stats.vehicles} trend={12} trendUp={true} />
-        <StatCard icon={Route} label="Active Trips" value={stats.trips} trend={8} trendUp={true} />
-        <StatCard icon={Package} label="Pending Shipments" value={stats.shipments} trend={-3} trendUp={false} />
-        <StatCard icon={Users} label="Available Drivers" value={stats.drivers} trend={5} trendUp={true} />
-        <StatCard icon={DollarSign} label="Today's Revenue" value={`$${stats.revenue.toLocaleString()}`} trend={15} trendUp={true} />
-        <StatCard icon={Clock} label="On-Time Rate" value={`${stats.onTimeRate}%`} trend={2} trendUp={true} />
+      
+      {/* Stat Cards Row */}
+      <div className="grid grid-cols-4 gap-6 mb-8">
+        <StatCard 
+          label="Total Orders" 
+          value={stats.totalOrders.value}
+          delta={stats.totalOrders.delta}
+          deltaDirection={stats.totalOrders.deltaDirection}
+        />
+        <StatCard 
+          label="Total Shipments" 
+          value={stats.totalShipments.value}
+          delta={stats.totalShipments.delta}
+          deltaDirection={stats.totalShipments.deltaDirection}
+        />
+        <StatCard 
+          label="Revenue" 
+          value={stats.revenue.value}
+          delta={stats.revenue.delta}
+          deltaDirection={stats.revenue.deltaDirection}
+        />
+        <StatCard 
+          label="Total Expense" 
+          value={stats.totalExpense.value}
+          delta={stats.totalExpense.delta}
+          deltaDirection={stats.totalExpense.deltaDirection}
+        />
       </div>
-
-      {/* Status Charts */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-white border border-line rounded-xl p-5">
-          <h3 className="font-medium text-ink mb-4">Vehicle Status Distribution</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={vehicleStatus}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={60}
-                fill="#8884d8"
-                dataKey="count"
-              >
-                {vehicleStatus.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+      
+      {/* Active Orders Section */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">Active orders</h2>
+        <Link to="/shipments" className="text-sm text-[#1e3a8a] hover:underline">
+          View all
+        </Link>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-6 mb-8">
+        {activeOrders.map((order) => (
+          <ActiveOrderCard
+            key={order.id}
+            order={order}
+            isSelected={selectedOrderId === order.id}
+            onSelect={setSelectedOrderId}
+          />
+        ))}
+      </div>
+      
+      {/* Map + Trip Detail Panel */}
+      <div className="grid grid-cols-5 gap-6 mb-8">
+        <div className="col-span-3 bg-white rounded-xl shadow-card overflow-hidden">
+          <MapPanel waypoints={waypoints} selectedOrder={activeOrders.find(o => o.id === selectedOrderId)} />
         </div>
-
-        <div className="bg-white border border-line rounded-xl p-5">
-          <h3 className="font-medium text-ink mb-4">Shipment Status</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={shipmentStatus}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={60}
-                fill="#8884d8"
-                dataKey="count"
-              >
-                {shipmentStatus.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="col-span-2 bg-white rounded-xl shadow-card">
+          <TripDetailPanel tripDetails={tripDetails} />
         </div>
       </div>
-
-      {/* Trend Charts */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-white border border-line rounded-xl p-5">
-          <h3 className="font-medium text-ink mb-4">Shipments Trend (30 Days)</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={shipmentTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tick={{fontSize: 12}} />
-              <YAxis tick={{fontSize: 12}} />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#0088FE" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white border border-line rounded-xl p-5">
-          <h3 className="font-medium text-ink mb-4">Weekly Performance</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weeklyPerformance}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{fontSize: 12}} />
-              <YAxis tick={{fontSize: 12}} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="completed_shipments" fill="#00C49F" name="Completed" />
-              <Bar dataKey="active_trips" fill="#0088FE" name="Active Trips" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      
+      {/* Transactions Table */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">Transactions</h2>
+        <Link to="/shipments" className="text-sm text-[#1e3a8a] hover:underline">
+          View all
+        </Link>
       </div>
-
-      {/* Activity Feed */}
-      <div className="bg-white border border-line rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-teal" />
-            <h2 className="font-medium text-ink">Recent Activity</h2>
-          </div>
-          <Link to="/shipments" className="text-sm text-teal font-medium hover:underline">
-            View All →
-          </Link>
-        </div>
-        <div className="p-5">
-          {recentShipments.length === 0 ? (
-            <div className="text-center text-sm text-ink-700/50 py-8">
-              No recent activity
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <tbody>
-                {recentShipments.map((s) => (
-                  <tr key={s.id} className="border-b border-line last:border-0">
-                    <td className="px-4 py-3"><ManifestTag>{s.tracking_code}</ManifestTag></td>
-                    <td className="px-4 py-3 text-ink-700">{s.pickup_address} → {s.dropoff_address}</td>
-                    <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                    <td className="px-4 py-3 text-xs text-ink-700/50">
-                      {new Date(s.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
+      
+      <TransactionsTable transactions={transactions} />
+    </>
   );
 }

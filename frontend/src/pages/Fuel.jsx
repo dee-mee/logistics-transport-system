@@ -36,7 +36,7 @@ const FuelManagement = () => {
         </div>
         <button
           onClick={fetchFuelData}
-          className="px-4 py-2 bg-teal text-white rounded-lg text-sm font-medium hover:bg-teal/90 transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex items-center gap-2"
         >
           <Calendar size={16} />
           Refresh
@@ -45,7 +45,7 @@ const FuelManagement = () => {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
         </div>
       ) : error ? (
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
@@ -54,7 +54,7 @@ const FuelManagement = () => {
           <p className="text-sm text-gray-600 mb-4">{error}</p>
           <button
             onClick={fetchFuelData}
-            className="px-4 py-2 bg-teal text-white rounded-lg text-sm font-medium hover:bg-teal/90"
+            className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700"
           >
             Retry
           </button>
@@ -68,7 +68,7 @@ const FuelManagement = () => {
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
-            <FuelIcon className="w-5 h-5 text-teal" />
+            <FuelIcon className="w-5 h-5 text-teal-600" />
             <h3 className="font-medium text-gray-900">Fuel Consumption Trend (30 Days)</h3>
           </div>
           <ResponsiveContainer width="100%" height={400}>

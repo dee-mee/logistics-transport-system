@@ -3,9 +3,16 @@
 @tailwind utilities;
 
 body {
-  background-color: #F1F2ED;
+  background-color: #8b95a8;
   font-family: 'Inter', sans-serif;
   color: #1B1F23;
+  margin: 0;
+  padding: 0;
+}
+
+/* Leaflet map styles */
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
 }
 
 .manifest-tag {
