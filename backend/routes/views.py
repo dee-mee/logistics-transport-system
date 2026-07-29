@@ -11,11 +11,14 @@ from .serializers import (
     RouteOptimizationSerializer, RouteOptimizationCreateSerializer, RouteTemplateSerializer,
     RouteFromTemplateSerializer
 )
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 
 class RouteViewSet(viewsets.ModelViewSet):
     """ViewSet for managing routes."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.ROUTES
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return Route.objects.filter(
@@ -237,7 +240,8 @@ class RouteViewSet(viewsets.ModelViewSet):
 
 class RouteStopViewSet(viewsets.ModelViewSet):
     """ViewSet for managing route stops."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.ROUTES
+    permission_classes = [HasModuleAccess]
     serializer_class = RouteStopSerializer
     
     def get_queryset(self):
@@ -280,7 +284,8 @@ class RouteStopViewSet(viewsets.ModelViewSet):
 
 class RouteOptimizationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing route optimizations."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.ROUTES
+    permission_classes = [HasModuleAccess]
     serializer_class = RouteOptimizationSerializer
     
     def get_queryset(self):
@@ -303,7 +308,8 @@ class RouteOptimizationViewSet(viewsets.ModelViewSet):
 
 class RouteTemplateViewSet(viewsets.ModelViewSet):
     """ViewSet for managing route templates."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.ROUTES
+    permission_classes = [HasModuleAccess]
     serializer_class = RouteTemplateSerializer
     
     def get_queryset(self):

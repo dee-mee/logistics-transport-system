@@ -12,11 +12,14 @@ from .serializers import (
 )
 from orders.models import Shipment
 from orders.serializers import ShipmentSerializer
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 
 class ShipmentStatusEventViewSet(viewsets.ModelViewSet):
     """ViewSet for managing shipment status events."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.TRACKING
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return ShipmentStatusEvent.objects.filter(
@@ -30,7 +33,8 @@ class ShipmentStatusEventViewSet(viewsets.ModelViewSet):
 
 class VehicleLocationPingViewSet(viewsets.ModelViewSet):
     """ViewSet for managing manual vehicle location updates from drivers."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.TRACKING
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return VehicleLocationPing.objects.filter(
@@ -110,7 +114,8 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
 
 class GeofenceViewSet(viewsets.ModelViewSet):
     """ViewSet for managing geofences (delivery zones, restricted areas)."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.TRACKING
+    permission_classes = [HasModuleAccess]
     serializer_class = GeofenceSerializer
     
     def get_queryset(self):
@@ -128,7 +133,8 @@ class GeofenceViewSet(viewsets.ModelViewSet):
 
 class GPSAlertViewSet(viewsets.ModelViewSet):
     """ViewSet for managing manual GPS alerts from drivers/dispatchers."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.TRACKING
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return GPSAlert.objects.filter(

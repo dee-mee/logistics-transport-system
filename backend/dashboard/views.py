@@ -11,12 +11,16 @@ from .serializers import (
     DashboardAlertSerializer, DashboardAlertUpdateSerializer, DashboardMetricsSerializer,
     VehicleStatusSummarySerializer, ShipmentStatusSummarySerializer, ActivityFeedSerializer
 )
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 
 class DashboardWidgetViewSet(viewsets.ModelViewSet):
     """ViewSet for managing dashboard widgets."""
+    module = PermissionGroup.Module.DASHBOARD
+    permission_classes = [HasModuleAccess]
     serializer_class = DashboardWidgetSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    queryset = DashboardWidget.objects.all()
     
     def get_queryset(self):
         return DashboardWidget.objects.filter(
@@ -149,8 +153,10 @@ class DashboardWidgetViewSet(viewsets.ModelViewSet):
 
 class SavedReportViewSet(viewsets.ModelViewSet):
     """ViewSet for managing saved reports."""
+    module = PermissionGroup.Module.DASHBOARD
+    permission_classes = [HasModuleAccess]
     serializer_class = SavedReportSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    queryset = SavedReport.objects.all()
     
     def get_queryset(self):
         return SavedReport.objects.filter(
@@ -174,8 +180,10 @@ class SavedReportViewSet(viewsets.ModelViewSet):
 
 class MetricSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for viewing metric snapshots."""
+    module = PermissionGroup.Module.DASHBOARD
+    permission_classes = [HasModuleAccess]
     serializer_class = MetricSnapshotSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    queryset = MetricSnapshot.objects.all()
     
     def get_queryset(self):
         return MetricSnapshot.objects.filter(
@@ -278,7 +286,9 @@ class MetricSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
 class DashboardAlertViewSet(viewsets.ModelViewSet):
     """ViewSet for managing dashboard alerts."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.DASHBOARD
+    permission_classes = [HasModuleAccess]
+    queryset = DashboardAlert.objects.all()
     
     def get_queryset(self):
         return DashboardAlert.objects.filter(
@@ -322,7 +332,9 @@ class DashboardAlertViewSet(viewsets.ModelViewSet):
 
 class DashboardMetricsViewSet(viewsets.ViewSet):
     """ViewSet for dashboard metrics and analytics."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.DASHBOARD
+    permission_classes = [HasModuleAccess]
+    queryset = None  # This is a read-only ViewSet without models
     
     def list(self, request):
         """Get comprehensive dashboard metrics."""
@@ -846,7 +858,16 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
             total_cost=Sum('total_cost')
         ).order_by('day')
         
-        return Response(list(daily_fuel))
+        # Format the response
+        formatted_data = []
+        for item in daily_fuel:
+            formatted_data.append({
+                'day': item['day'].isoformat() if item['day'] else None,
+                'total_liters': float(item['total_liters']) if item['total_liters'] else 0,
+                'total_cost': float(item['total_cost']) if item['total_cost'] else 0
+            })
+        
+        return Response(formatted_data)
     
     def _get_dashboard_metrics(self, organization):
         """Calculate comprehensive dashboard metrics."""

@@ -63,7 +63,7 @@ const FuelManagement = () => {
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
           <FuelIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-800 mb-2">No Fuel Data Available</h3>
-          <p className="text-sm text-gray-600">No fuel consumption data has been recorded yet.</p>
+          <p className="text-sm text-gray-600">No fuel consumption data has been recorded yet. Start recording fuel transactions to see consumption trends here.</p>
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -74,9 +74,20 @@ const FuelManagement = () => {
           <ResponsiveContainer width="100%" height={400}>
             <LineChart data={fuelTrend}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tick={{fontSize: 12}} />
+              <XAxis 
+                dataKey="day" 
+                tick={{fontSize: 12}} 
+                tickFormatter={(value) => new Date(value).toLocaleDateString()}
+              />
               <YAxis tick={{fontSize: 12}} />
-              <Tooltip />
+              <Tooltip 
+                labelFormatter={(value) => {
+                  if (typeof value === 'number') {
+                    return value.toLocaleString();
+                  }
+                  return value;
+                }}
+              />
               <Legend />
               <Line type="monotone" dataKey="total_liters" stroke="#00C49F" strokeWidth={2} name="Liters" />
               <Line type="monotone" dataKey="total_cost" stroke="#FF8042" strokeWidth={2} name="Cost ($)" />

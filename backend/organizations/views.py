@@ -8,11 +8,14 @@ from .serializers import (
     OrganizationSerializer, OrganizationCreateSerializer, OrganizationUserSerializer,
     OrganizationSettingsSerializer, InvitationSerializer, InvitationCreateSerializer
 )
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing organizations."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.SETTINGS
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         # Users can only see organizations they belong to
@@ -99,8 +102,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
 class OrganizationUserViewSet(viewsets.ModelViewSet):
     """ViewSet for managing organization memberships."""
+    module = PermissionGroup.Module.SETTINGS
+    permission_classes = [HasModuleAccess]
     serializer_class = OrganizationUserSerializer
-    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         return OrganizationUser.objects.filter(
@@ -119,8 +123,9 @@ class OrganizationUserViewSet(viewsets.ModelViewSet):
 
 class InvitationViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for managing invitations."""
+    module = PermissionGroup.Module.SETTINGS
+    permission_classes = [HasModuleAccess]
     serializer_class = InvitationSerializer
-    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         # Users can see invitations sent to them or sent by them

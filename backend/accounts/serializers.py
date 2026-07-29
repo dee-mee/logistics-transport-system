@@ -15,10 +15,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["username", "email", "first_name", "last_name", "role", "phone_number", "password"]
+        fields = ["username", "email", "first_name", "last_name", "phone_number", "password"]
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        # Default to 'customer' role for self-registration to prevent privilege escalation
+        validated_data['role'] = 'customer'
         user = User(**validated_data)
         user.set_password(password)
         user.save()

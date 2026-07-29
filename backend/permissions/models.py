@@ -13,6 +13,7 @@ class PermissionGroup(models.Model):
         DISPATCH = "dispatch", "Dispatch"
         TRACKING = "tracking", "Tracking"
         ORDERS = "orders", "Orders"
+        ROUTES = "routes", "Routes"
         MAINTENANCE = "maintenance", "Maintenance"
         FUEL = "fuel", "Fuel"
         INVENTORY = "inventory", "Inventory"

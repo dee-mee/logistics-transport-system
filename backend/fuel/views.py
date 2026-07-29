@@ -9,12 +9,15 @@ from .serializers import (
     FuelTransactionSerializer, FuelCardSerializer, FuelCardDetailSerializer,
     FuelConsumptionSerializer, FuelAlertSerializer, FuelAlertUpdateSerializer
 )
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 
 class FuelTransactionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing fuel transactions."""
+    module = PermissionGroup.Module.FUEL
+    permission_classes = [HasModuleAccess]
     serializer_class = FuelTransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         return FuelTransaction.objects.filter(
@@ -60,7 +63,8 @@ class FuelTransactionViewSet(viewsets.ModelViewSet):
 
 class FuelCardViewSet(viewsets.ModelViewSet):
     """ViewSet for managing fuel cards."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.FUEL
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return FuelCard.objects.filter(
@@ -130,8 +134,9 @@ class FuelCardViewSet(viewsets.ModelViewSet):
 
 class FuelConsumptionViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for viewing fuel consumption metrics."""
+    module = PermissionGroup.Module.FUEL
+    permission_classes = [HasModuleAccess]
     serializer_class = FuelConsumptionSerializer
-    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         return FuelConsumption.objects.filter(
@@ -156,7 +161,8 @@ class FuelConsumptionViewSet(viewsets.ReadOnlyModelViewSet):
 
 class FuelAlertViewSet(viewsets.ModelViewSet):
     """ViewSet for managing fuel alerts."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.FUEL
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return FuelAlert.objects.filter(

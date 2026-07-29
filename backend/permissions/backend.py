@@ -182,7 +182,20 @@ class OrganizationPermissionBackend(BaseBackend):
     def _get_module_from_permission(self, perm):
         """Extract module name from permission codename."""
         # Permission format: app.action_model (e.g., fleet.view_vehicle)
-        parts = perm.split('_')
-        if len(parts) >= 2:
-            return parts[1]  # Get the model name as module
-        return perm
+        # or app.action_module (e.g., fleet.view_vehicles)
+        parts = perm.split('.')
+        if len(parts) == 2:
+            # Django format: app_label.codename (e.g., fleet.view_vehicle)
+            codename = parts[1]
+            # Extract the action and model/module
+            action_parts = codename.split('_')
+            if len(action_parts) >= 2:
+                # The second part is the model/module name
+                return action_parts[1]
+            return codename
+        else:
+            # Simple format: action_model (e.g., view_vehicle)
+            action_parts = perm.split('_')
+            if len(action_parts) >= 2:
+                return action_parts[1]
+            return perm

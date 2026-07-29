@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model, authenticate
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, throttling
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import viewsets
 from .serializers import UserSerializer, RegisterSerializer
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 User = get_user_model()
 
@@ -13,6 +15,7 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [throttling.AnonRateThrottle]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -67,11 +70,24 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
+    module = PermissionGroup.Module.SETTINGS
+    permission_classes = [HasModuleAccess]
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Only allow admins to see all users, non-admins see only themselves
-        if self.request.user.is_staff or self.request.user.role == 'admin':
-            return User.objects.all()
+        # Only allow admins to see users, non-admins see only themselves
+        try:
+            from organizations.models import OrganizationUser
+            org_user = OrganizationUser.objects.get(
+                organization=self.request.user.current_organization,
+                user=self.request.user
+            )
+            if self.request.user.is_staff or org_user.role == OrganizationUser.Role.ADMIN:
+                # Scope to admin's current organization to prevent cross-tenant leak
+                return User.objects.filter(
+                    current_organization=self.request.user.current_organization
+                )
+        except OrganizationUser.DoesNotExist:
+            pass
+        
         return User.objects.filter(id=self.request.user.id)

@@ -11,11 +11,14 @@ from .serializers import (
     VehicleSerializer, VehicleListSerializer, DriverSerializer, DriverListSerializer,
     MaintenanceRecordSerializer, VehicleDocumentSerializer, VehicleInspectionSerializer
 )
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 
 class VehicleViewSet(viewsets.ModelViewSet):
     """ViewSet for managing vehicles."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
         return Vehicle.objects.filter(
@@ -174,12 +177,27 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
 class DriverViewSet(viewsets.ModelViewSet):
     """ViewSet for managing drivers."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
-        return Driver.objects.filter(
+        queryset = Driver.objects.filter(
             organization=self.request.user.current_organization
         ).select_related("user", "assigned_vehicle").order_by("-created_at")
+        
+        # Drivers can only see their own record
+        try:
+            from organizations.models import OrganizationUser
+            org_user = OrganizationUser.objects.get(
+                organization=self.request.user.current_organization,
+                user=self.request.user
+            )
+            if org_user.role == OrganizationUser.Role.DRIVER:
+                queryset = queryset.filter(user=self.request.user)
+        except OrganizationUser.DoesNotExist:
+            pass
+        
+        return queryset
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -308,7 +326,8 @@ class DriverViewSet(viewsets.ModelViewSet):
 
 class MaintenanceRecordViewSet(viewsets.ModelViewSet):
     """ViewSet for managing maintenance records."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     serializer_class = MaintenanceRecordSerializer
     
     def get_queryset(self):
@@ -430,7 +449,8 @@ class MaintenanceRecordViewSet(viewsets.ModelViewSet):
 
 class VehicleDocumentViewSet(viewsets.ModelViewSet):
     """ViewSet for managing vehicle documents."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     serializer_class = VehicleDocumentSerializer
     
     def get_queryset(self):
@@ -516,7 +536,8 @@ class VehicleDocumentViewSet(viewsets.ModelViewSet):
 
 class VehicleInspectionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing vehicle inspections."""
-    permission_classes = [permissions.IsAuthenticated]
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     serializer_class = VehicleInspectionSerializer
     
     def get_queryset(self):
