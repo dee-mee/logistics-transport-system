@@ -19,7 +19,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+# Django media
+backend/media/
+media/
 # Virtual Environment
 venv/
 env/
