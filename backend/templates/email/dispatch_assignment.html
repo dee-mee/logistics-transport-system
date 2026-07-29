@@ -1,0 +1,10 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>New Dispatch Assignment</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>You have been assigned a new dispatch:</p>
+    <p><strong>{{ notification.title }}</strong></p>
+    <p>{{ notification.message }}</p>
+    <p>Please check your dispatch details in the {{ site_name }} dashboard.</p>
+    <a href="{{ site_url }}/dispatch" class="button">View Dispatch</a>
+{% endblock %}

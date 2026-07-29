@@ -1,10 +1,14 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django.contrib.auth.models import Permission
 from .models import PermissionGroup, RolePermission, UserPermission
 from .serializers import (
     PermissionSerializer, PermissionGroupSerializer, 
-    RolePermissionSerializer, UserPermissionSerializer
+    RolePermissionSerializer, UserPermissionSerializer,
+    OrganizationRolePermissionsSerializer
 )
+from accounts.services import AuditLogService
 
 
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -45,7 +49,67 @@ class RolePermissionViewSet(viewsets.ModelViewSet):
         if not org.members.filter(user=self.request.user).exists():
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You can only manage permissions for your organizations")
-        serializer.save()
+        
+        old_access = None
+        role_perm = serializer.save()
+        
+        # Log permission change
+        if old_access and old_access != role_perm.access_level:
+            AuditLogService.log_permission_change(
+                self.request.user,
+                role_perm.organization,
+                role_perm.module,
+                role_perm.role,
+                old_access,
+                role_perm.access_level,
+                self.request
+            )
+
+    def perform_update(self, serializer):
+        old_access = self.instance.access_level
+        role_perm = serializer.save()
+        
+        # Log permission change
+        if old_access != role_perm.access_level:
+            AuditLogService.log_permission_change(
+                self.request.user,
+                role_perm.organization,
+                role_perm.module,
+                role_perm.role,
+                old_access,
+                role_perm.access_level,
+                self.request
+            )
+
+    @action(detail=False, methods=['get'])
+    def organization_permissions(self, request):
+        """Get all role permissions for the current organization."""
+        organization = request.user.current_organization
+        if not organization:
+            return Response(
+                {"error": "No organization set for current user"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        role_permissions = self.get_queryset()
+        serializer = self.get_serializer(role_permissions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def set_organization_permissions(self, request):
+        """Set all role permissions for the current organization."""
+        organization = request.user.current_organization
+        if not organization:
+            return Response(
+                {"error": "No organization set for current user"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = OrganizationRolePermissionsSerializer(data=request.data)
+        if serializer.is_valid():
+            result = serializer.save()
+            return Response(result)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserPermissionViewSet(viewsets.ModelViewSet):

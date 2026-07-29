@@ -9,6 +9,31 @@ function Users() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  
+  // Form state for add user
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    role: 'customer',
+    password: '',
+    phone_number: ''
+  });
+  
+  // Form state for edit user
+  const [editUser, setEditUser] = useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    role: 'customer',
+    is_active: true
+  });
+  
+  // Loading states
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -17,7 +42,7 @@ function Users() {
   async function loadUsers() {
     try {
       setLoading(true);
-      const response = await client.get('/auth/users/users/').catch(() => ({ data: [] }));
+      const response = await client.get('/auth/users/').catch(() => ({ data: [] }));
       const usersData = response.data.results ?? response.data;
       setUsers(usersData);
     } catch (error) {
@@ -30,12 +55,11 @@ function Users() {
   function getRoleBadge(role) {
     const roleConfig = {
       'admin': { bg: 'bg-red-100', text: 'text-red-700', label: 'Admin' },
-      'manager': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Manager' },
-      'driver': { bg: 'bg-green-100', text: 'text-green-700', label: 'Driver' },
       'dispatcher': { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Dispatcher' },
-      'staff': { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Staff' },
+      'driver': { bg: 'bg-green-100', text: 'text-green-700', label: 'Driver' },
+      'customer': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Customer' },
     };
-    const config = roleConfig[role] || roleConfig['staff'];
+    const config = roleConfig[role] || roleConfig['customer'];
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
         {config.label}
@@ -50,6 +74,148 @@ function Users() {
     user.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  async function handleAddUser() {
+    try {
+      setIsAddingUser(true);
+      console.log('Adding user:', newUser);
+      // For admin user creation, use the users endpoint instead of register
+      const userData = {
+        username: newUser.username,
+        email: newUser.email,
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        role: newUser.role,
+        phone_number: newUser.phone_number,
+        password: newUser.password
+      };
+      const response = await client.post('/auth/users/', userData);
+      console.log('User added successfully:', response.data);
+      
+      // Close modal
+      setShowAddModal(false);
+      
+      // Reset form
+      setNewUser({
+        username: '',
+        email: '',
+        first_name: '',
+        last_name: '',
+        role: 'customer',
+        password: '',
+        phone_number: ''
+      });
+      
+      // Refresh users list
+      await loadUsers();
+      
+      // Show success message
+      alert('User added successfully!');
+    } catch (error) {
+      console.error('Error adding user:', error);
+      if (error.response && error.response.data) {
+        console.error('Validation errors:', error.response.data);
+        const errors = error.response.data;
+        let errorMessage = 'Failed to add user. ';
+        if (typeof errors === 'string') {
+          errorMessage += errors;
+        } else if (errors.password) {
+          errorMessage += Array.isArray(errors.password) ? errors.password.join(' ') : errors.password;
+        } else if (errors.username) {
+          errorMessage += Array.isArray(errors.username) ? errors.username.join(' ') : errors.username;
+        } else if (errors.email) {
+          errorMessage += Array.isArray(errors.email) ? errors.email.join(' ') : errors.email;
+        } else {
+          errorMessage += 'Please check the form and try again.';
+        }
+        alert(errorMessage);
+      } else {
+        alert('Failed to add user. Please check the form and try again.');
+      }
+    } finally {
+      setIsAddingUser(false);
+    }
+  }
+
+  async function handleEditUser() {
+    try {
+      setIsUpdatingUser(true);
+      console.log('Editing user:', editUser);
+      const response = await client.put(`/auth/users/${selectedUser.id}/`, editUser);
+      console.log('User updated successfully:', response.data);
+      
+      // Close modal
+      setShowEditModal(false);
+      setSelectedUser(null);
+      
+      // Refresh users list
+      await loadUsers();
+      
+      // Show success message
+      alert('User updated successfully!');
+    } catch (error) {
+      console.error('Error editing user:', error);
+      if (error.response && error.response.data) {
+        console.error('Validation errors:', error.response.data);
+        const errors = error.response.data;
+        let errorMessage = 'Failed to update user. ';
+        if (typeof errors === 'string') {
+          errorMessage += errors;
+        } else if (errors.password) {
+          errorMessage += Array.isArray(errors.password) ? errors.password.join(' ') : errors.password;
+        } else if (errors.username) {
+          errorMessage += Array.isArray(errors.username) ? errors.username.join(' ') : errors.username;
+        } else if (errors.email) {
+          errorMessage += Array.isArray(errors.email) ? errors.email.join(' ') : errors.email;
+        } else {
+          errorMessage += 'Please check the form and try again.';
+        }
+        alert(errorMessage);
+      } else {
+        alert('Failed to update user. Please try again.');
+      }
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  }
+
+  async function handleDeleteUser(userId) {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+      await client.delete(`/auth/users/${userId}/`);
+      loadUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user. Please try again.');
+    }
+  }
+
+  function handleAddModalOpen() {
+    setNewUser({
+      username: '',
+      email: '',
+      first_name: '',
+      last_name: '',
+      role: 'customer',
+      password: '',
+      phone_number: ''
+    });
+    setShowAddModal(true);
+  }
+
+  function handleEditModalOpen(user) {
+    setSelectedUser(user);
+    setEditUser({
+      username: user.username,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role,
+      is_active: user.is_active
+    });
+    setShowEditModal(true);
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -58,7 +224,7 @@ function Users() {
           <p className="text-sm text-gray-500">Manage system users and permissions</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={handleAddModalOpen}
           className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2 rounded-lg hover:bg-[#1e40af] transition-colors"
         >
           <UserPlus size={16} /> Add User
@@ -147,13 +313,14 @@ function Users() {
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => { setSelectedUser(user); setShowEditModal(true); }}
+                        onClick={() => handleEditModalOpen(user)}
                         className="text-gray-400 hover:text-gray-600"
                         title="Edit"
                       >
                         <Edit size={16} />
                       </button>
                       <button
+                        onClick={() => handleDeleteUser(user.id)}
                         className="text-gray-400 hover:text-red-600"
                         title="Delete"
                       >
@@ -175,48 +342,88 @@ function Users() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input 
+                  type="text" 
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input 
+                  type="email" 
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <input 
+                    type="text" 
+                    value={newUser.first_name}
+                    onChange={(e) => setNewUser({...newUser, first_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <input 
+                    type="text" 
+                    value={newUser.last_name}
+                    onChange={(e) => setNewUser({...newUser, last_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option value="staff">Staff</option>
+                <select 
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="customer">Customer</option>
                   <option value="driver">Driver</option>
                   <option value="dispatcher">Dispatcher</option>
-                  <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input 
+                  type="text" 
+                  value={newUser.phone_number}
+                  onChange={(e) => setNewUser({...newUser, phone_number: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input 
+                  type="password" 
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm"
+                disabled={isAddingUser}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af]"
+                onClick={handleAddUser}
+                disabled={isAddingUser}
+                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af] disabled:opacity-50"
               >
-                Add User
+                {isAddingUser ? 'Adding...' : 'Add User'}
               </button>
             </div>
           </div>
@@ -230,48 +437,79 @@ function Users() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                <input type="text" defaultValue={selectedUser.username} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input 
+                  type="text" 
+                  value={editUser.username}
+                  onChange={(e) => setEditUser({...editUser, username: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" defaultValue={selectedUser.email} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input 
+                  type="email" 
+                  value={editUser.email}
+                  onChange={(e) => setEditUser({...editUser, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input type="text" defaultValue={selectedUser.first_name} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <input 
+                    type="text" 
+                    value={editUser.first_name}
+                    onChange={(e) => setEditUser({...editUser, first_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input type="text" defaultValue={selectedUser.last_name} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <input 
+                    type="text" 
+                    value={editUser.last_name}
+                    onChange={(e) => setEditUser({...editUser, last_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                <select defaultValue={selectedUser.role} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option value="staff">Staff</option>
+                <select 
+                  value={editUser.role}
+                  onChange={(e) => setEditUser({...editUser, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="customer">Customer</option>
                   <option value="driver">Driver</option>
                   <option value="dispatcher">Dispatcher</option>
-                  <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked={selectedUser.is_active} className="rounded" />
+                <input 
+                  type="checkbox" 
+                  checked={editUser.is_active}
+                  onChange={(e) => setEditUser({...editUser, is_active: e.target.checked})}
+                  className="rounded" 
+                />
                 <label className="text-sm text-gray-700">Active</label>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm"
+                disabled={isUpdatingUser}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af]"
+                onClick={handleEditUser}
+                disabled={isUpdatingUser}
+                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af] disabled:opacity-50"
               >
-                Save Changes
+                {isUpdatingUser ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

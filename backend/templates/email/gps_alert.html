@@ -1,0 +1,10 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>GPS Alert Notification</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>A GPS alert has been triggered:</p>
+    <p><strong>{{ notification.title }}</strong></p>
+    <p>{{ notification.message }}</p>
+    <p>Please review this alert in the {{ site_name }} dashboard.</p>
+    <a href="{{ site_url }}/alerts" class="button">View Alerts</a>
+{% endblock %}

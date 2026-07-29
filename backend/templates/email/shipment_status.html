@@ -1,0 +1,10 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>Shipment Status Update</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>Your shipment status has been updated:</p>
+    <p><strong>{{ notification.title }}</strong></p>
+    <p>{{ notification.message }}</p>
+    <p>You can track your shipment in the {{ site_name }} dashboard.</p>
+    <a href="{{ site_url }}/shipments" class="button">View Shipments</a>
+{% endblock %}

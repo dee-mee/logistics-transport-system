@@ -46,6 +46,49 @@ function Sidebar() {
 
   const isActive = (path) => location.pathname === path;
 
+  // Role-based menu access
+  const hasMenuAccess = (item) => {
+    if (!user) return false;
+    
+    // Django superuser and staff have access to everything
+    if (user.is_superuser || user.is_staff) return true;
+    
+    // Check custom role field
+    if (!user?.role) return false;
+    
+    const role = user.role.toLowerCase();
+    
+    // Admin has access to everything
+    if (role === 'admin' || role === 'owner') return true;
+    
+    // Dispatcher access
+    if (role === 'dispatcher') {
+      const dispatcherMenus = [
+        '/dashboard', '/shipments', '/trips', '/live-map', '/alerts',
+        '/fleet', '/fuel', '/maintenance', '/reports'
+      ];
+      return dispatcherMenus.includes(item.path);
+    }
+    
+    // Driver access
+    if (role === 'driver') {
+      const driverMenus = [
+        '/dashboard', '/trips', '/live-map', '/alerts', '/fuel', '/profile'
+      ];
+      return driverMenus.includes(item.path);
+    }
+    
+    // Customer access
+    if (role === 'customer') {
+      const customerMenus = [
+        '/dashboard', '/shipments', '/live-map', '/alerts', '/profile'
+      ];
+      return customerMenus.includes(item.path);
+    }
+    
+    return false;
+  };
+
   const menuSections = [
     {
       id: 'main',
@@ -99,6 +142,12 @@ function Sidebar() {
     }
   ];
 
+  // Filter menu items based on user role
+  const filteredMenuSections = menuSections.map(section => ({
+    ...section,
+    items: section.items.filter(hasMenuAccess)
+  })).filter(section => section.items.length > 0);
+
   return (
     <div className="w-64 bg-[#1e3a8a] flex flex-col h-screen fixed left-0 top-0">
       {/* Logo */}
@@ -113,7 +162,7 @@ function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4">
-        {menuSections.map((section) => (
+        {filteredMenuSections.map((section) => (
           <div key={section.id} className="mb-2">
             <button
               onClick={() => toggleSection(section.id)}
@@ -166,7 +215,7 @@ function Sidebar() {
                   : user?.username || 'User'}
               </div>
               <div className="text-white/60 text-xs capitalize">
-                {user?.role || 'Administrator'}
+                {user?.is_superuser ? 'Superuser' : user?.is_staff ? 'Staff' : user?.role || 'Administrator'}
               </div>
             </div>
           </div>

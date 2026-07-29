@@ -17,7 +17,14 @@
       "Exec(curl)",
       "Exec(python3)",
       "Exec(mkdir)",
-      "Exec(lsof)"
+      "Exec(lsof)",
+      "Exec(grep)",
+      "Exec(mv)",
+      "Exec(xargs grep)",
+      "Exec(ls)",
+      "Exec(pkill)",
+      "Exec(sleep)",
+      "Exec(/home/deemee/projects/logistics-transport-system/venv/bin/python)"
     ]
   }
 }

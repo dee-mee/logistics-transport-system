@@ -11,21 +11,27 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from datetime import timedelta
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Environment variables
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-5*a=@kn8$555&=xc_kd(qd-c)n+v9$_2v6i=k84$#rl5)xvbcb'
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-5*a=@kn8$555&=xc_kd(qd-c)n+v9$_2v6i=k84$#rl5)xvbcb')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool('DEBUG', default=True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -41,8 +47,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'django_celery_beat',
     'corsheaders',
     'django_filters',
+    'axes',
+    'django_rest_passwordreset',
     'accounts',
     'organizations',
     'permissions',
@@ -63,6 +74,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'axes.middleware.AxesMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -70,13 +82,14 @@ MIDDLEWARE = [
 AUTH_USER_MODEL = 'accounts.User'
 
 AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesBackend',
     'django.contrib.auth.backends.ModelBackend',
     'permissions.backend.OrganizationPermissionBackend',
 ]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -94,19 +107,87 @@ REST_FRAMEWORK = {
     },
 }
 
-CORS_ALLOWED_ORIGINS = [
+# JWT Settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=env.int('JWT_ACCESS_TOKEN_LIFETIME', default=60)),
+    'REFRESH_TOKEN_LIFETIME': timedelta(minutes=env.int('JWT_REFRESH_TOKEN_LIFETIME', default=1440)),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    # Include user data in token response
+    'UPDATE_LAST_LOGIN': True,
+}
+
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5174',
     'http://127.0.0.1:5174',
-]
+])
+
+# Security Settings
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
+
+# Email Configuration
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='localhost')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@logisticspro.com')
+
+# SMS Configuration (Africa's Talking)
+AFRICASTALKING_USERNAME = env('AFRICASTALKING_USERNAME', default='')
+AFRICASTALKING_API_KEY = env('AFRICASTALKING_API_KEY', default='')
+AFRICASTALKING_SENDER_ID = env('AFRICASTALKING_SENDER_ID', default='LogisticsPro')
+
+# Redis Configuration
+REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
+
+# Celery Configuration
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+# Make Celery more fault-tolerant when Redis is down
+CELERY_TASK_ALWAYS_EAGER = env('CELERY_TASK_ALWAYS_EAGER', default=False)  # Run tasks synchronously for development
+CELERY_TASK_IGNORE_RESULT = True  # Don't track results if Redis is down
+
+# Django Axes Configuration
+AXES_FAILURE_LIMIT = env.int('AXES_FAILURE_LIMIT', default=5)
+AXES_COOLOFF_TIME = timedelta(minutes=env.int('AXES_COOLOFF_TIME', default=30))
+AXES_RESET_ON_SUCCESS = env.bool('AXES_RESET_ON_SUCCESS', default=True)
+AXES_LOCKOUT_TEMPLATE = 'axes/lockout.html'
+AXES_LOCKOUT_URL = '/account/locked/'
+AXES_LOCKOUT_CALLABLE = 'accounts.views.lockout_response'
+
+# Django Rest Password Reset Configuration
+DJANGO_REST_PASSWORDRESET = {
+    'POST_EMAIL_RESET_URL': '/api/auth/reset-password/',
+    'POST_EMAIL_RESET_CONFIRM_URL': '/api/auth/reset-password/confirm/',
+    'EMAIL_RESET_URL_LIFETIME': 3,  # hours
+    'EMAIL_TEMPLATE_NAME': 'email/password_reset_email.html',
+    'EMAIL_SUBJECT': 'Password Reset Request',
+    'TOKEN_ALGORITHM': 'sha256',
+    'PASSWORD_RESET_PLAINTEXT_TIMEOUT': 600,  # seconds
+}
 
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -157,6 +238,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
+CELERY_TIMEZONE = TIME_ZONE
 
 USE_I18N = True
 

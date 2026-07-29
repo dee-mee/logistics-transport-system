@@ -1,0 +1,10 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>Fuel Anomaly Alert</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>A fuel anomaly has been detected:</p>
+    <p><strong>{{ notification.title }}</strong></p>
+    <p>{{ notification.message }}</p>
+    <p>Please review this anomaly in the {{ site_name }} dashboard.</p>
+    <a href="{{ site_url }}/fuel" class="button">View Fuel</a>
+{% endblock %}

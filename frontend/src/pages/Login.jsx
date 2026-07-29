@@ -15,10 +15,32 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
+      console.log("Attempting login with username:", username);
       await login(username, password);
-      navigate("/");
+      console.log("Login successful, navigating to dashboard");
+      // Force navigation after a small delay to ensure state is updated
+      setTimeout(() => {
+        navigate("/");
+      }, 100);
     } catch (err) {
-      setError("Those credentials didn't match an account. Check them and try again.");
+      console.error("Login failed:", err);
+      if (err.isPermissionError) {
+        setError(err.customMessage || "Permission denied");
+      } else if (err.isLockedError) {
+        setError(err.customMessage || "Account locked");
+      } else if (err.response) {
+        // Backend responded with error
+        console.error("Backend error response:", err.response.data);
+        setError(err.response.data.detail || "Login failed. Please check your credentials.");
+      } else if (err.request) {
+        // Request made but no response
+        console.error("No response from server:", err.message);
+        setError("Network error. Please check your connection.");
+      } else {
+        // Other error
+        console.error("Unexpected error:", err.message);
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setBusy(false);
     }

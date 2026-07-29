@@ -1,0 +1,16 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>Daily Notification Digest</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>Here's your daily summary of notifications:</p>
+    <ul>
+        {% for notification in notifications %}
+            <li>
+                <strong>{{ notification.title }}</strong> - {{ notification.created_at|date:"H:i" }}
+                <br>{{ notification.message }}
+            </li>
+        {% endfor %}
+    </ul>
+    <p>You have {{ notifications|length }} new notifications.</p>
+    <a href="{{ site_url }}/notifications" class="button">View All Notifications</a>
+{% endblock %}

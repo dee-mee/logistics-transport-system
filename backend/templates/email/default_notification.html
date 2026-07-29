@@ -1,0 +1,10 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>{{ notification.title }}</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>{{ notification.message }}</p>
+    {% if notification.related_object_type %}
+        <p>This notification is related to your {{ notification.related_object_type }}.</p>
+    {% endif %}
+    <p>Thank you for using {{ site_name }}.</p>
+{% endblock %}

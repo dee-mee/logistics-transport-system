@@ -1,0 +1,10 @@
+{% extends 'email/base.html' %}
+{% block content %}
+    <h2>Maintenance Due Reminder</h2>
+    <p>Hello {{ user.first_name|default:user.username }},</p>
+    <p>This is a reminder that maintenance is due:</p>
+    <p><strong>{{ notification.title }}</strong></p>
+    <p>{{ notification.message }}</p>
+    <p>Please schedule maintenance in the {{ site_name }} dashboard.</p>
+    <a href="{{ site_url }}/maintenance" class="button">View Maintenance</a>
+{% endblock %}
