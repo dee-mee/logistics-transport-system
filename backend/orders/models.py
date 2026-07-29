@@ -41,6 +41,8 @@ class Shipment(models.Model):
     organization = models.ForeignKey('organizations.Organization', on_delete=models.CASCADE, related_name='shipments', null=True, blank=True)
     tracking_code = models.CharField(max_length=20, unique=True, editable=False)
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="shipments")
+    driver = models.ForeignKey('fleet.Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_shipments")
+    vehicle = models.ForeignKey('fleet.Vehicle', on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_shipments")
 
     pickup_address = models.CharField(max_length=255)
     pickup_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)

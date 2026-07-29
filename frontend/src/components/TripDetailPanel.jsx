@@ -3,26 +3,26 @@ function TripDetailPanel({ tripDetails }) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         <div className="text-center">
-          <div className="text-sm">Select an order to view trip details</div>
+          <div className="text-sm">Select a shipment to view details</div>
         </div>
       </div>
     );
   }
 
   const details = [
-    { label: 'Driver Name', value: tripDetails.driverName },
-    { label: 'Distance', value: tripDetails.distance },
-    { label: 'Experience', value: tripDetails.experience },
-    { label: 'License', value: tripDetails.license },
-    { label: 'ID Number', value: tripDetails.idNumber },
-    { label: 'Estimation', value: tripDetails.estimation },
-    { label: 'Weight', value: tripDetails.weight },
-    { label: 'Charge', value: tripDetails.charge },
+    { label: 'Tracking Code', value: tripDetails.tracking_code },
+    { label: 'Customer', value: tripDetails.customer_name },
+    { label: 'Driver', value: tripDetails.driver_name || 'Not assigned' },
+    { label: 'Vehicle', value: tripDetails.vehicle_plate || 'Not assigned' },
+    { label: 'Status', value: tripDetails.status },
+    { label: 'Weight', value: `${tripDetails.weight_kg} kg` },
+    { label: 'Priority', value: tripDetails.priority },
+    { label: 'Pickup', value: tripDetails.pickup_address },
   ];
 
   return (
     <div className="p-6">
-      <h3 className="text-lg font-semibold text-navy mb-6">Trip Details</h3>
+      <h3 className="text-lg font-semibold text-navy mb-6">Shipment Details</h3>
       
       <div className="grid grid-cols-2 gap-4">
         {details.map((detail) => (

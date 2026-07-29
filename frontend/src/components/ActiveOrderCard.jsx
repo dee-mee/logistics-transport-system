@@ -1,7 +1,10 @@
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import StatusPill from './StatusPill';
+import { getShipmentColor } from '../utils/shipmentColors';
 
 function ActiveOrderCard({ order, isSelected, onSelect }) {
+  const shipmentColor = getShipmentColor(order?.id);
+  
   return (
     <div
       onClick={() => onSelect(order.id)}
@@ -9,17 +12,23 @@ function ActiveOrderCard({ order, isSelected, onSelect }) {
         isSelected ? 'ring-2 ring-accent shadow-card' : 'shadow-card'
       }`}
     >
-      {/* Header: ID + Status */}
+      {/* Header: Tracking Code + Status + Color Indicator */}
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="text-xs text-gray-400 mb-1">ID</div>
-          <div className="font-semibold text-navy">{order.id}</div>
+        <div className="flex items-center gap-2">
+          <div 
+            className="w-3 h-3 rounded-full" 
+            style={{ backgroundColor: shipmentColor.primary }}
+          />
+          <div>
+            <div className="text-xs text-gray-400 mb-1">Tracking Code</div>
+            <div className="font-semibold text-navy">{order.tracking_code}</div>
+          </div>
         </div>
         <StatusPill status={order.status} variant="outline" />
       </div>
       
-      {/* Category */}
-      <div className="text-sm text-gray-600 mb-4">{order.category}</div>
+      {/* Customer */}
+      <div className="text-sm text-gray-600 mb-4">{order.customer_name}</div>
       
       {/* Origin */}
       <div className="flex items-start gap-3 mb-3">
@@ -27,8 +36,8 @@ function ActiveOrderCard({ order, isSelected, onSelect }) {
           <ArrowUpRight size={16} className="text-status-green" />
         </div>
         <div className="flex-1">
-          <div className="text-xs text-gray-400">{order.pickupDate}</div>
-          <div className="text-sm text-navy">{order.pickupAddress}</div>
+          <div className="text-xs text-gray-400">Pickup</div>
+          <div className="text-sm text-navy">{order.pickup_address}</div>
         </div>
       </div>
       
@@ -38,8 +47,8 @@ function ActiveOrderCard({ order, isSelected, onSelect }) {
           <ArrowDownRight size={16} className="text-accent" />
         </div>
         <div className="flex-1">
-          <div className="text-xs text-gray-400">{order.dropoffDate}</div>
-          <div className="text-sm text-navy">{order.dropoffAddress}</div>
+          <div className="text-xs text-gray-400">Dropoff</div>
+          <div className="text-sm text-navy">{order.dropoff_address}</div>
         </div>
       </div>
     </div>

@@ -12,14 +12,22 @@ def shipment_status_changed(sender, instance, created, **kwargs):
         # Get the shipment's customer
         shipment = instance.shipment
         if shipment and shipment.customer:
-            NotificationService.send_notification(
-                user=shipment.customer,
-                notification_type=Notification.NotificationType.SHIPMENT_STATUS,
-                title=f"Shipment Status Updated: {instance.status}",
-                message=f"Your shipment {shipment.tracking_code} status is now: {instance.status}",
-                related_object_type='Shipment',
-                related_object_id=shipment.id
-            )
+            try:
+                # Check if customer has a user field
+                if hasattr(shipment.customer, 'user') and shipment.customer.user:
+                    NotificationService.send_notification(
+                        user=shipment.customer.user,
+                        notification_type=Notification.NotificationType.SHIPMENT_STATUS,
+                        title=f"Shipment Status Updated: {instance.status}",
+                        message=f"Your shipment {shipment.tracking_code} status is now: {instance.status}",
+                        related_object_type='Shipment',
+                        related_object_id=shipment.id
+                    )
+            except Exception as e:
+                # Log error but don't fail status event creation
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send shipment status notification: {e}")
 
 
 @receiver(post_save, sender='dispatch.Trip')

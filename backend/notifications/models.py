@@ -16,6 +16,7 @@ class Notification(models.Model):
         FUEL_ANOMALY = "fuel_anomaly", "Fuel Anomaly"
         PASSWORD_RESET = "password_reset", "Password Reset"
         ACCOUNT_VERIFICATION = "account_verification", "Account Verification"
+        DOCUMENT_EXPIRY = "document_expiry", "Document Expiry"
 
     class Channel(models.TextChoices):
         IN_APP = "in_app", "In-App"

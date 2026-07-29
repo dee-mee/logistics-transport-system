@@ -24,7 +24,8 @@
       "Exec(ls)",
       "Exec(pkill)",
       "Exec(sleep)",
-      "Exec(/home/deemee/projects/logistics-transport-system/venv/bin/python)"
+      "Exec(/home/deemee/projects/logistics-transport-system/venv/bin/python)",
+      "Exec(/home/deemee/projects/logistics/transport-system/venv/bin/python)"
     ]
   }
 }

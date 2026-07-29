@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, MapPin, User, Truck, Play } from "lucide-react";
 import client from "../api/client";
 import StatusBadge from "../components/StatusBadge";
 import ManifestTag from "../components/ManifestTag";
+import LocationPicker from "../components/LocationPicker";
+import DriverTracking from "../components/DriverTracking";
+import { useAuth } from "../context/AuthContext";
 
 const STATUS_OPTIONS = ["pending", "confirmed", "assigned", "in_transit", "delivered", "cancelled", "failed"];
 
@@ -10,6 +13,7 @@ function CreateShipmentModal({ onClose, onCreated }) {
   const [customers, setCustomers] = useState([]);
   const [form, setForm] = useState({
     customer: "", pickup_address: "", dropoff_address: "", weight_kg: "", priority: "standard",
+    pickup_lat: null, pickup_lng: null, dropoff_lat: null, dropoff_lng: null,
   });
   const [newCustomer, setNewCustomer] = useState({ contact_name: "", contact_phone: "", company_name: "" });
   const [useNewCustomer, setUseNewCustomer] = useState(true);
@@ -30,7 +34,14 @@ function CreateShipmentModal({ onClose, onCreated }) {
         const res = await client.post("/orders/customers/", newCustomer);
         customerId = res.data.id;
       }
-      await client.post("/orders/shipments/", { ...form, customer: customerId });
+      await client.post("/orders/shipments/", { 
+        ...form, 
+        customer: customerId,
+        pickup_lat: form.pickup_lat,
+        pickup_lng: form.pickup_lng,
+        dropoff_lat: form.dropoff_lat,
+        dropoff_lng: form.dropoff_lng
+      });
       onCreated();
     } catch (err) {
       setError("Couldn't create that shipment — check the fields and try again.");
@@ -87,16 +98,20 @@ function CreateShipmentModal({ onClose, onCreated }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-ink-700 mb-1.5">Pickup address</label>
-            <input required value={form.pickup_address}
-              onChange={(e) => setForm({ ...form, pickup_address: e.target.value })}
-              className="w-full border border-line rounded-lg px-3 py-2 text-sm" />
+            <LocationPicker
+              label="Pickup address"
+              value={form.pickup_address}
+              onChange={(value) => setForm({ ...form, pickup_address: value })}
+              onCoordinatesChange={(coords) => setForm({ ...form, pickup_lat: coords.lat, pickup_lng: coords.lng })}
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink-700 mb-1.5">Dropoff address</label>
-            <input required value={form.dropoff_address}
-              onChange={(e) => setForm({ ...form, dropoff_address: e.target.value })}
-              className="w-full border border-line rounded-lg px-3 py-2 text-sm" />
+            <LocationPicker
+              label="Dropoff address"
+              value={form.dropoff_address}
+              onChange={(value) => setForm({ ...form, dropoff_address: value })}
+              onCoordinatesChange={(coords) => setForm({ ...form, dropoff_lat: coords.lat, dropoff_lng: coords.lng })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -131,10 +146,25 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
   const [newStatus, setNewStatus] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showAssignDriver, setShowAssignDriver] = useState(false);
+  const [drivers, setDrivers] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [selectedDriver, setSelectedDriver] = useState("");
+  const [selectedVehicle, setSelectedVehicle] = useState("");
 
   useEffect(() => {
+    // Clear previous events when shipment changes
+    setEvents([]);
+    
     client.get(`/tracking/status-events/?shipment=${shipment.id}`)
-      .then((res) => setEvents(res.data.results ?? res.data));
+      .then((res) => {
+        console.log('ShipmentDrawer events for shipment:', shipment.id, res.data);
+        setEvents(res.data.results ?? res.data);
+      });
+    
+    // Load drivers and vehicles for assignment
+    client.get("/fleet/drivers/").then((res) => setDrivers(res.data.results ?? res.data));
+    client.get("/fleet/vehicles/").then((res) => setVehicles(res.data.results ?? res.data));
   }, [shipment.id]);
 
   async function addEvent(e) {
@@ -142,12 +172,65 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     if (!newStatus) return;
     setBusy(true);
     try {
-      await client.post("/tracking/status-events/", { shipment: shipment.id, status: newStatus, note });
+      await client.post("/tracking/status-events/", { 
+        shipment: shipment.id, 
+        status: newStatus, 
+        note,
+        location_description: note
+      });
       const res = await client.get(`/tracking/status-events/?shipment=${shipment.id}`);
       setEvents(res.data.results ?? res.data);
       setNote("");
       setNewStatus("");
       onUpdated();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add status event");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function assignDriver() {
+    if (!selectedDriver) return;
+    setBusy(true);
+    try {
+      await client.post(`/orders/shipments/${shipment.id}/assign_driver/`, {
+        driver_id: selectedDriver,
+        vehicle_id: selectedVehicle || null
+      });
+      setShowAssignDriver(false);
+      setSelectedDriver("");
+      setSelectedVehicle("");
+      onUpdated();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to assign driver");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startTracking() {
+    setBusy(true);
+    try {
+      await client.post(`/orders/shipments/${shipment.id}/start_tracking/`);
+      
+      // Create a status event with coordinates for tracking
+      if (shipment.pickup_lat && shipment.pickup_lng) {
+        await client.post("/tracking/status-events/", {
+          shipment: shipment.id,
+          status: "in_transit",
+          location_description: "Tracking started",
+          lat: shipment.pickup_lat,
+          lng: shipment.pickup_lng
+        });
+      }
+      
+      onUpdated();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to start tracking");
     } finally {
       setBusy(false);
     }
@@ -171,8 +254,100 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
               <div className="flex justify-between"><dt className="text-ink-700/60">Dropoff</dt><dd className="text-right">{shipment.dropoff_address}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-700/60">Weight</dt><dd>{shipment.weight_kg} kg</dd></div>
               <div className="flex justify-between"><dt className="text-ink-700/60">Priority</dt><dd className="capitalize">{shipment.priority}</dd></div>
+              {shipment.driver_name && (
+                <div className="flex justify-between"><dt className="text-ink-700/60">Driver</dt><dd className="text-right">{shipment.driver_name}</dd></div>
+              )}
+              {shipment.vehicle_plate && (
+                <div className="flex justify-between"><dt className="text-ink-700/60">Vehicle</dt><dd className="text-right">{shipment.vehicle_plate}</dd></div>
+              )}
             </dl>
           </div>
+
+          <div className="border-t border-line pt-4">
+            <h3 className="font-medium text-ink mb-3">Driver Assignment</h3>
+            {!shipment.driver ? (
+              <div className="space-y-3">
+                {!showAssignDriver ? (
+                  <button
+                    onClick={() => setShowAssignDriver(true)}
+                    className="w-full flex items-center justify-center gap-2 bg-teal text-white rounded-lg py-2.5 text-sm font-medium hover:bg-teal-700 transition-colors"
+                  >
+                    <User size={16} />
+                    Assign Driver
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <select
+                      value={selectedDriver}
+                      onChange={(e) => setSelectedDriver(e.target.value)}
+                      className="w-full border border-line rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select driver…</option>
+                      {drivers.map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.user?.first_name} {driver.user?.last_name} ({driver.license_number})
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={selectedVehicle}
+                      onChange={(e) => setSelectedVehicle(e.target.value)}
+                      className="w-full border border-line rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select vehicle (optional)…</option>
+                      {vehicles.map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.id}>
+                          {vehicle.plate_number} - {vehicle.make} {vehicle.model}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={assignDriver}
+                        disabled={busy || !selectedDriver}
+                        className="flex-1 bg-ink text-white rounded-lg py-2 text-sm font-medium hover:bg-ink-700 transition-colors disabled:opacity-50"
+                      >
+                        {busy ? "Assigning…" : "Assign"}
+                      </button>
+                      <button
+                        onClick={() => setShowAssignDriver(false)}
+                        className="px-4 py-2 border border-line rounded-lg text-sm hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <User size={16} className="text-teal" />
+                  <span className="font-medium">{shipment.driver_name}</span>
+                  {shipment.vehicle_plate && (
+                    <>
+                      <Truck size={16} className="text-ink-700/50" />
+                      <span>{shipment.vehicle_plate}</span>
+                    </>
+                  )}
+                </div>
+                {shipment.status === 'assigned' && (
+                  <button
+                    onClick={startTracking}
+                    disabled={busy}
+                    className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    <Play size={16} />
+                    {busy ? "Starting…" : "Start Tracking"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {shipment.status === 'in_transit' && shipment.driver && (
+            <DriverTracking shipment={shipment} />
+          )}
 
           <div>
             <h3 className="font-medium text-ink mb-3">Status timeline</h3>
@@ -214,6 +389,7 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
 }
 
 export default function Shipments() {
+  const { user } = useAuth();
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -222,13 +398,34 @@ export default function Shipments() {
 
   function load() {
     setLoading(true);
-    const q = statusFilter ? `?status=${statusFilter}` : "";
+    
+    // Build query parameters based on user role
+    let queryParams = [];
+    if (statusFilter) {
+      queryParams.push(`status=${statusFilter}`);
+    }
+    
+    const q = queryParams.length > 0 ? `?${queryParams.join('&')}` : "";
+    
     client.get(`/orders/shipments/${q}`)
-      .then((res) => setShipments(res.data.results ?? res.data))
+      .then((res) => {
+        let shipments = res.data.results ?? res.data;
+        
+        // If user is a driver, filter to show only their assigned shipments
+        if (user?.role === 'driver') {
+          shipments = shipments.filter(shipment => {
+            // Filter by driver name or user ID as a temporary workaround
+            return shipment.driver_name && shipment.driver_name.includes(user.username) || 
+                   shipment.driver_id === user.id;
+          });
+        }
+        
+        setShipments(shipments);
+      })
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, user]);
 
   return (
     <div>
@@ -237,10 +434,13 @@ export default function Shipments() {
           <h1 className="font-display text-2xl font-semibold text-ink mb-1">Shipments</h1>
           <p className="text-sm text-ink-700/60">Every order moving through the network.</p>
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-ink text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-ink-700 transition-colors">
-          <Plus size={16} /> New shipment
-        </button>
+        {/* Only show New shipment button for non-drivers */}
+        {user?.role !== 'driver' && (
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-ink text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-ink-700 transition-colors">
+            <Plus size={16} /> New shipment
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-4">

@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import { getShipmentColor } from '../utils/shipmentColors';
 
 let DefaultIcon = L.icon({
   iconUrl: icon,
@@ -18,53 +19,120 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 function MapPanel({ waypoints, selectedOrder }) {
-  // Default center if no waypoints
-  const center = waypoints && waypoints.length > 0 
-    ? [waypoints[0].lat, waypoints[0].lng] 
-    : [40.7128, -74.0060]; // Default to NYC
+  // Get shipment-specific colors
+  const shipmentColor = getShipmentColor(selectedOrder?.id);
+  
+  console.log('MapPanel received:', { waypoints, selectedOrder });
+  
+  // Use selected order coordinates if available
+  const pickupCoords = selectedOrder?.pickup_lat && selectedOrder?.pickup_lng 
+    ? [parseFloat(selectedOrder.pickup_lat), parseFloat(selectedOrder.pickup_lng)]
+    : null;
+    
+  const dropoffCoords = selectedOrder?.dropoff_lat && selectedOrder?.dropoff_lng
+    ? [parseFloat(selectedOrder.dropoff_lat), parseFloat(selectedOrder.dropoff_lng)]
+    : null;
   
   // Convert waypoints to LatLng array for Polyline
   const routePositions = waypoints 
     ? waypoints.map(wp => [wp.lat, wp.lng])
     : [];
   
+  console.log('MapPanel calculated:', { pickupCoords, dropoffCoords, routePositions });
+  
+  // Combine all points for better map centering
+  const allPoints = [...routePositions];
+  if (pickupCoords) allPoints.push(pickupCoords);
+  if (dropoffCoords) allPoints.push(dropoffCoords);
+  
+  // Default center if no waypoints or coordinates
+  const mapCenter = allPoints.length > 0 
+    ? allPoints[0] 
+    : [40.7128, -74.0060]; // Default to NYC
+  
+  // Custom icons for pickup/dropoff with shipment colors
+  const pickupIcon = new L.Icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+    className: 'pickup-marker'
+  });
+  
+  const dropoffIcon = new L.Icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+    className: 'dropoff-marker'
+  });
+  
   return (
     <div className="h-full min-h-[400px] rounded-xl overflow-hidden">
-      <MapContainer 
-        center={center} 
-        zoom={12} 
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        {/* Draw route polyline */}
-        {routePositions.length > 1 && (
-          <Polyline 
-            positions={routePositions} 
-            color="#2f5fe3" 
-            weight={4}
-            opacity={0.8}
+      {!selectedOrder ? (
+        <div className="h-full flex items-center justify-center text-gray-500">
+          Select a shipment to view route
+        </div>
+      ) : (
+        <MapContainer 
+          center={mapCenter} 
+          zoom={12} 
+          style={{ height: '100%', width: '100%' }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-        )}
-        
-        {/* Draw markers for each waypoint */}
-        {waypoints && waypoints.map((wp, index) => (
-          <Marker 
-            key={`${wp.lat}-${wp.lng}-${index}`} 
-            position={[wp.lat, wp.lng]}
-          >
-            <Popup>
-              <div className="text-sm">
-                <div className="font-medium">Waypoint {index + 1}</div>
-                <div className="text-gray-500">{wp.address || 'Unknown location'}</div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+          
+          {/* Draw route polyline with shipment-specific color */}
+          {routePositions.length > 1 && (
+            <Polyline 
+              positions={routePositions} 
+              color={shipmentColor.primary} 
+              weight={4}
+              opacity={0.8}
+            />
+          )}
+          
+          {/* Draw pickup marker with shipment-specific color */}
+          {pickupCoords && (
+            <Marker position={pickupCoords} icon={pickupIcon}>
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-medium" style={{ color: shipmentColor.primary }}>
+                    🚩 Pickup Location
+                  </div>
+                  <div className="text-gray-500">{selectedOrder?.pickup_address || 'Unknown location'}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {selectedOrder?.tracking_code}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+          
+          {/* Draw dropoff marker with shipment-specific color */}
+          {dropoffCoords && (
+            <Marker position={dropoffCoords} icon={dropoffIcon}>
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-medium" style={{ color: shipmentColor.primary }}>
+                    🏁 Dropoff Location
+                  </div>
+                  <div className="text-gray-500">{selectedOrder?.dropoff_address || 'Unknown location'}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {selectedOrder?.tracking_code}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+        </MapContainer>
+      )}
     </div>
   );
 }

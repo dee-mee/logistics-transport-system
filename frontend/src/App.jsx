@@ -17,6 +17,7 @@ import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
 import Organization from "./pages/Organization";
 import Reports from "./pages/Reports";
+import Documents from "./pages/Documents";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -62,6 +63,7 @@ function AppRoutes() {
         <Route path="users" element={<Users />} />
         <Route path="organization" element={<Organization />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="documents" element={<Documents />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
       </Route>

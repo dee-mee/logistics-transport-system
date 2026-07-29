@@ -88,8 +88,8 @@ class LiveMapDataSerializer(serializers.Serializer):
     """Serializer for live map data."""
     vehicle_id = serializers.UUIDField()
     plate_number = serializers.CharField()
-    lat = serializers.DecimalField(max_digits=9, decimal_places=6)
-    lng = serializers.DecimalField(max_digits=9, decimal_places=6)
+    lat = serializers.FloatField()
+    lng = serializers.FloatField()
     speed_kmh = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True)
     heading_deg = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True)
     status = serializers.CharField()

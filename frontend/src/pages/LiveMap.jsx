@@ -63,10 +63,17 @@ const LiveMap = () => {
       
       // Update map center if we have vehicles, otherwise keep default
       if (response.data.length > 0) {
-        const avgLat = response.data.reduce((sum, v) => sum + (v.lat || 0), 0) / response.data.length;
-        const avgLng = response.data.reduce((sum, v) => sum + (v.lng || 0), 0) / response.data.length;
-        setMapCenter([avgLat, avgLng]);
-        setMapZoom(10);
+        const validVehicles = response.data.filter(v => v.lat && v.lng);
+        if (validVehicles.length > 0) {
+          const avgLat = validVehicles.reduce((sum, v) => sum + parseFloat(v.lat), 0) / validVehicles.length;
+          const avgLng = validVehicles.reduce((sum, v) => sum + parseFloat(v.lng), 0) / validVehicles.length;
+          setMapCenter([avgLat, avgLng]);
+          setMapZoom(10);
+        } else {
+          // Keep default center if no valid coordinates
+          setMapCenter([20, 0]);
+          setMapZoom(2);
+        }
       }
       // If no vehicles, keep default center [20, 0] and zoom 2
     } catch (err) {
@@ -253,12 +260,15 @@ const LiveMap = () => {
           />
           
           {filteredVehicles.map((vehicle) => {
-            if (!vehicle.lat || !vehicle.lng) return null;
+            const lat = parseFloat(vehicle.lat);
+            const lng = parseFloat(vehicle.lng);
+            
+            if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
             
             return (
               <Marker
                 key={vehicle.vehicle_id}
-                position={[vehicle.lat, vehicle.lng]}
+                position={[lat, lng]}
                 icon={customIcon(getStatusColor(vehicle.status), getVehicleIcon(vehicle.vehicle_type))}
                 eventHandlers={{
                   click: () => setSelectedVehicle(vehicle)
@@ -305,8 +315,10 @@ const LiveMap = () => {
                     }`}
                     onClick={() => {
                       setSelectedVehicle(vehicle);
-                      if (vehicle.lat && vehicle.lng) {
-                        setMapCenter([vehicle.lat, vehicle.lng]);
+                      const lat = parseFloat(vehicle.lat);
+                      const lng = parseFloat(vehicle.lng);
+                      if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                        setMapCenter([lat, lng]);
                         setMapZoom(13);
                       }
                     }}
@@ -380,11 +392,11 @@ const LiveMap = () => {
                   </div>
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">Latitude</div>
-                    <div className="font-medium text-gray-800">{selectedVehicle.lat?.toFixed(4) || 'N/A'}</div>
+                    <div className="font-medium text-gray-800">{parseFloat(selectedVehicle.lat)?.toFixed(4) || 'N/A'}</div>
                   </div>
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">Longitude</div>
-                    <div className="font-medium text-gray-800">{selectedVehicle.lng?.toFixed(4) || 'N/A'}</div>
+                    <div className="font-medium text-gray-800">{parseFloat(selectedVehicle.lng)?.toFixed(4) || 'N/A'}</div>
                   </div>
                 </div>
                 
@@ -401,8 +413,10 @@ const LiveMap = () => {
                 
                 <button
                   onClick={() => {
-                    if (selectedVehicle.lat && selectedVehicle.lng) {
-                      setMapCenter([selectedVehicle.lat, selectedVehicle.lng]);
+                    const lat = parseFloat(selectedVehicle.lat);
+                    const lng = parseFloat(selectedVehicle.lng);
+                    if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                      setMapCenter([lat, lng]);
                       setMapZoom(13);
                     }
                   }}

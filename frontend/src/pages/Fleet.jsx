@@ -96,20 +96,23 @@ export default function Fleet() {
   const [maintenance, setMaintenance] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [fleetStats, setFleetStats] = useState({});
+  const [driverStats, setDriverStats] = useState({});
 
   async function load() {
     try {
-      const [vehiclesRes, driversRes, maintenanceRes, statsRes] = await Promise.all([
+      const [vehiclesRes, driversRes, maintenanceRes, vehicleStatsRes, driverStatsRes] = await Promise.all([
         client.get("/fleet/vehicles/").catch(() => ({ data: [] })),
         client.get("/fleet/drivers/").catch(() => ({ data: [] })),
         client.get("/fleet/maintenance-records/").catch(() => ({ data: [] })),
         client.get("/fleet/vehicles/analytics/").catch(() => ({ data: {} })),
+        client.get("/fleet/drivers/analytics/").catch(() => ({ data: {} })),
       ]);
 
       setVehicles(vehiclesRes.data.results ?? vehiclesRes.data);
       setDrivers(driversRes.data.results ?? driversRes.data);
       setMaintenance(maintenanceRes.data.results ?? maintenanceRes.data);
-      setFleetStats(statsRes.data);
+      setFleetStats(vehicleStatsRes.data);
+      setDriverStats(driverStatsRes.data);
     } catch (error) {
       console.error('Error loading fleet data:', error);
     }
@@ -129,7 +132,7 @@ export default function Fleet() {
         <p className="text-sm text-gray-500">Manage vehicles, drivers, and maintenance schedules.</p>
       </div>
       
-      <FleetStats stats={fleetStats} />
+      <FleetStats vehicleStats={fleetStats} driverStats={driverStats} />
       
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab("vehicles")}

@@ -122,6 +122,7 @@ function Sidebar() {
       items: [
         { path: '/users', icon: Users, label: 'Users' },
         { path: '/organization', icon: Building2, label: 'Organization' },
+        { path: '/documents', icon: FileText, label: 'Documents' },
         { path: '/notifications', icon: Bell, label: 'Notifications' },
       ]
     },
