@@ -111,6 +111,7 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
   };
 
   const handleSuggestionClick = async (suggestion) => {
+    console.log('Suggestion clicked:', suggestion);
     const address = suggestion.display_name;
     setQuery(address);
     setShowSuggestions(false);
@@ -126,8 +127,10 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     });
     setMapCenter([roundedLat, roundedLng]);
     setMapZoom(13);
+    console.log('Calling onChange with address:', address);
     onChange(address);
     if (onCoordinatesChange) {
+      console.log('Calling onCoordinatesChange with:', { lat: roundedLat, lng: roundedLng });
       onCoordinatesChange({ lat: roundedLat, lng: roundedLng });
     }
     setShowMap(true);
@@ -233,13 +236,18 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
         </button>
 
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
             {suggestions.map((suggestion, index) => (
               <button
                 key={index}
                 type="button"
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('Button clicked, calling handleSuggestionClick');
+                  handleSuggestionClick(suggestion);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0 cursor-pointer"
               >
                 <div className="font-medium text-gray-800">{suggestion.display_name.split(',')[0]}</div>
                 <div className="text-gray-500 text-xs truncate">{suggestion.display_name}</div>
