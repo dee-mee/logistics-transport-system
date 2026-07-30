@@ -22,7 +22,27 @@ ACTION_TO_ACCESS_LEVEL = {
     'update': RolePermission.AccessLevel.EDIT,
     'partial_update': RolePermission.AccessLevel.EDIT,
     'destroy': RolePermission.AccessLevel.FULL,
-    'custom_actions': RolePermission.AccessLevel.EDIT,  # Default for custom actions
+    # Custom read-only actions
+    'custom_actions': RolePermission.AccessLevel.VIEW,  # Default for custom actions
+    'summary': RolePermission.AccessLevel.VIEW,
+    'vehicle_summary': RolePermission.AccessLevel.VIEW,
+    'stats': RolePermission.AccessLevel.VIEW,
+    'active_orders': RolePermission.AccessLevel.VIEW,
+    'transactions': RolePermission.AccessLevel.VIEW,
+    'vehicle_status': RolePermission.AccessLevel.VIEW,
+    'shipment_status': RolePermission.AccessLevel.VIEW,
+    'shipment_trend': RolePermission.AccessLevel.VIEW,
+    'activity_feed': RolePermission.AccessLevel.VIEW,
+    'weekly_performance': RolePermission.AccessLevel.VIEW,
+    'alerts': RolePermission.AccessLevel.VIEW,
+    'fuel_trend': RolePermission.AccessLevel.VIEW,
+    'default_layout': RolePermission.AccessLevel.VIEW,
+    'current': RolePermission.AccessLevel.VIEW,
+    'assign_vehicle': RolePermission.AccessLevel.EDIT,
+    'remove_vehicle': RolePermission.AccessLevel.EDIT,
+    'resolve': RolePermission.AccessLevel.EDIT,
+    'acknowledge': RolePermission.AccessLevel.EDIT,
+    'run': RolePermission.AccessLevel.EDIT,
 }
 
 
@@ -72,7 +92,7 @@ class HasModuleAccess(permissions.BasePermission):
             required_level = self.required_access_level
         else:
             action = getattr(view, 'action', 'list')
-            required_level = ACTION_TO_ACCESS_LEVEL.get(action, RolePermission.AccessLevel.EDIT)
+            required_level = ACTION_TO_ACCESS_LEVEL.get(action, RolePermission.AccessLevel.VIEW)
         
         # Check role-based permissions
         role = None

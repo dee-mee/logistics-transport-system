@@ -10,7 +10,7 @@ from .serializers import (
     FuelConsumptionSerializer, FuelAlertSerializer, FuelAlertUpdateSerializer
 )
 from permissions.permissions import HasModuleAccess
-from permissions.models import PermissionGroup
+from permissions.models import PermissionGroup, RolePermission
 
 
 class FuelTransactionViewSet(viewsets.ModelViewSet):
@@ -18,6 +18,11 @@ class FuelTransactionViewSet(viewsets.ModelViewSet):
     module = PermissionGroup.Module.FUEL
     permission_classes = [HasModuleAccess]
     serializer_class = FuelTransactionSerializer
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Override to ensure VIEW access is sufficient for read operations
+        self.required_access_level = RolePermission.AccessLevel.VIEW
     
     def get_queryset(self):
         return FuelTransaction.objects.filter(
@@ -65,6 +70,11 @@ class FuelCardViewSet(viewsets.ModelViewSet):
     """ViewSet for managing fuel cards."""
     module = PermissionGroup.Module.FUEL
     permission_classes = [HasModuleAccess]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Override to ensure VIEW access is sufficient for read operations
+        self.required_access_level = RolePermission.AccessLevel.VIEW
     
     def get_queryset(self):
         return FuelCard.objects.filter(
@@ -138,6 +148,11 @@ class FuelConsumptionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasModuleAccess]
     serializer_class = FuelConsumptionSerializer
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Override to ensure VIEW access is sufficient for read operations
+        self.required_access_level = RolePermission.AccessLevel.VIEW
+    
     def get_queryset(self):
         return FuelConsumption.objects.filter(
             organization=self.request.user.current_organization
@@ -163,6 +178,11 @@ class FuelAlertViewSet(viewsets.ModelViewSet):
     """ViewSet for managing fuel alerts."""
     module = PermissionGroup.Module.FUEL
     permission_classes = [HasModuleAccess]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Override to ensure VIEW access is sufficient for read operations
+        self.required_access_level = RolePermission.AccessLevel.VIEW
     
     def get_queryset(self):
         return FuelAlert.objects.filter(

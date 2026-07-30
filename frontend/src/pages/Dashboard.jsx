@@ -55,74 +55,32 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch real shipments data, filtered by user role
-      let shipmentsUrl = '/orders/shipments/';
+      // Fetch shipments data - backend now scopes per-user automatically
+      const shipmentsUrl = '/orders/shipments/';
+      const shipmentsRes = await client.get(shipmentsUrl);
       
-      // If user is a driver, filter to show only their assigned shipments
-      if (user?.role === 'driver') {
-        // Need to get the driver ID, not user ID
-        // For now, fetch all shipments and filter client-side
-        const shipmentsRes = await client.get(shipmentsUrl);
+      console.log('Dashboard shipments response:', shipmentsRes.data);
+      console.log('User role:', user?.role, 'User ID:', user?.id);
+      
+      if (shipmentsRes.data?.results) {
+        const shipments = shipmentsRes.data.results;
+        setActiveOrders(shipments);
         
-        console.log('Dashboard shipments response:', shipmentsRes.data);
-        console.log('User role:', user?.role, 'User ID:', user?.id);
+        // Calculate stats from real data
+        const totalShipments = shipments.length;
+        const inTransitShipments = shipments.filter(s => s.status === 'in_transit').length;
         
-        if (shipmentsRes.data && shipmentsRes.data.results) {
-          // Filter shipments where driver_name matches the user's name or use other logic
-          const shipments = shipmentsRes.data.results.filter(shipment => {
-            // This is a temporary workaround - ideally the API should handle driver filtering
-            return shipment.driver_name && shipment.driver_name.includes(user.username) || 
-                   shipment.driver_id === user.id;
-          });
-          
-          setActiveOrders(shipments);
-          
-          // Calculate stats from real data
-          const totalShipments = shipments.length;
-          const inTransitShipments = shipments.filter(s => s.status === 'in_transit').length;
-          const assignedShipments = shipments.filter(s => s.status === 'assigned').length;
-          
-          setStats({
-            totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
-            totalShipments: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
-            revenue: { value: '$0', delta: 0, deltaDirection: 'up' },
-            totalExpense: { value: '$0', delta: 0, deltaDirection: 'down' },
-          });
-          
-          // Select first shipment if none selected, prefer in_transit shipments
-          if (!selectedOrderId && shipments.length > 0) {
-            const inTransitShipment = shipments.find(s => s.status === 'in_transit');
-            setSelectedOrderId(inTransitShipment ? inTransitShipment.id : shipments[0].id);
-          }
-        }
-      } else {
-        // Non-driver users see all shipments
-        const shipmentsRes = await client.get(shipmentsUrl);
+        setStats({
+          totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
+          totalShipments: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
+          revenue: { value: '$0', delta: 0, deltaDirection: 'up' },
+          totalExpense: { value: '$0', delta: 0, deltaDirection: 'down' },
+        });
         
-        console.log('Dashboard shipments response:', shipmentsRes.data);
-        console.log('User role:', user?.role, 'User ID:', user?.id);
-        
-        if (shipmentsRes.data && shipmentsRes.data.results) {
-          const shipments = shipmentsRes.data.results;
-          setActiveOrders(shipments);
-          
-          // Calculate stats from real data
-          const totalShipments = shipments.length;
-          const inTransitShipments = shipments.filter(s => s.status === 'in_transit').length;
-          const assignedShipments = shipments.filter(s => s.status === 'assigned').length;
-          
-          setStats({
-            totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
-            totalShipments: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
-            revenue: { value: '$0', delta: 0, deltaDirection: 'up' },
-            totalExpense: { value: '$0', delta: 0, deltaDirection: 'down' },
-          });
-          
-          // Select first shipment if none selected, prefer in_transit shipments
-          if (!selectedOrderId && shipments.length > 0) {
-            const inTransitShipment = shipments.find(s => s.status === 'in_transit');
-            setSelectedOrderId(inTransitShipment ? inTransitShipment.id : shipments[0].id);
-          }
+        // Select first shipment if none selected, prefer in_transit shipments
+        if (!selectedOrderId && shipments.length > 0) {
+          const inTransitShipment = shipments.find(s => s.status === 'in_transit');
+          setSelectedOrderId(inTransitShipment ? inTransitShipment.id : shipments[0].id);
         }
       }
       
@@ -133,113 +91,136 @@ export default function Dashboard() {
     }
   };
 
+  // Helper: haversine distance in km between two [lat, lng] points
+  function haversineKm([lat1, lng1], [lat2, lng2]) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // Helper: does this ordered set of points need road-snapping?
+  function needsRouting(points, thresholdKm = 2) {
+    if (points.length < 2) return false;
+    for (let i = 1; i < points.length; i++) {
+      if (haversineKm(points[i - 1], points[i]) > thresholdKm) return true;
+    }
+    return false;
+  }
+
+  // Helper: call OSRM with an ordered list of [lat, lng] waypoints
+  async function routeViaOSRM(points) {
+    // OSRM wants lng,lat and semicolon-separated coordinate pairs
+    const coordString = points.map(([lat, lng]) => `${lng},${lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.routes && data.routes[0]) {
+      return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    }
+    return null; // let caller fall back to straight line
+  }
+
   const fetchTripDetails = async (orderId) => {
     if (!orderId) return;
-    
+
     try {
       setMapLoading(true);
-      console.log('Fetching trip details for shipment:', orderId);
-      
-      // Clear previous data to avoid showing wrong shipment data
       setWaypoints(null);
       setTripDetails(null);
-      
-      // Fetch shipment details and tracking events
+
       const [shipmentRes, eventsRes] = await Promise.all([
         client.get(`/orders/shipments/${orderId}/`),
         client.get(`/tracking/status-events/?shipment=${orderId}`),
       ]);
-      
-      console.log('Dashboard shipment response:', shipmentRes.data);
-      console.log('Dashboard tracking events response:', eventsRes.data);
-      
-      if (shipmentRes.data) {
-        setTripDetails(shipmentRes.data);
-      }
-      
-      if (eventsRes.data && eventsRes.data.results) {
-        // Create waypoints from tracking events, sorted by timestamp
-        const sortedEvents = eventsRes.data.results
-          .filter(event => event.lat && event.lng)
+
+      if (shipmentRes.data) setTripDetails(shipmentRes.data);
+
+      const shipment = shipmentRes.data;
+      const pickup = shipment?.pickup_lat && shipment?.pickup_lng
+        ? [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)]
+        : null;
+      const dropoff = shipment?.dropoff_lat && shipment?.dropoff_lng
+        ? [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)]
+        : null;
+
+      // Build the ordered list of known points: pickup -> tracking pings -> dropoff
+      let sortedEvents = [];
+      if (eventsRes.data?.results) {
+        sortedEvents = eventsRes.data.results
+          .filter(e => e.lat && e.lng)
           .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        
-        // Remove duplicate coordinates (same lat/lng) to avoid zigzag
-        const uniqueWaypoints = [];
-        const seen = new Set();
-        
-        sortedEvents.forEach(event => {
-          const key = `${event.lat}-${event.lng}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueWaypoints.push({
-              lat: parseFloat(event.lat),
-              lng: parseFloat(event.lng),
-              timestamp: event.created_at,
-              description: event.location_description
-            });
-          }
-        });
-        
-        console.log('Dashboard unique sorted waypoints:', uniqueWaypoints);
-        
-        // If we have actual tracking waypoints, use them directly
-        if (uniqueWaypoints.length > 0) {
-          setWaypoints(uniqueWaypoints);
-        } else {
-          // Fallback: Use pickup and dropoff coordinates for routing
-          const shipment = shipmentRes.data;
-          if (shipment.pickup_lat && shipment.pickup_lng && shipment.dropoff_lat && shipment.dropoff_lng) {
-            const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
-            const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
-            
-            // Use OSRM routing service to get road-based route
-            try {
-              const osrmResponse = await fetch(
-                `https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${dropoff[1]},${dropoff[0]}?overview=full&geometries=geojson`
-              );
-              const osrmData = await osrmResponse.json();
-              
-              if (osrmData.routes && osrmData.routes[0]) {
-                const routeCoords = osrmData.routes[0].geometry.coordinates.map(coord => 
-                  [coord[1], coord[0]] // OSRM returns [lng, lat], we need [lat, lng]
-                );
-                
-                console.log('OSRM route coordinates:', routeCoords);
-                setWaypoints(routeCoords.map((coord, index) => ({
-                  lat: coord[0],
-                  lng: coord[1],
-                  timestamp: null,
-                  description: index === 0 ? 'Pickup (routed)' : index === routeCoords.length - 1 ? 'Dropoff (routed)' : 'Route point'
-                })));
-              } else {
-                // Fallback to straight line if routing fails
-                setWaypoints([
-                  { lat: pickup[0], lng: pickup[1], timestamp: null, description: 'Pickup' },
-                  { lat: dropoff[0], lng: dropoff[1], timestamp: null, description: 'Dropoff' }
-                ]);
-              }
-            } catch (routingError) {
-              console.error('OSRM routing failed:', routingError);
-              // Fallback to straight line
-              setWaypoints([
-                { lat: pickup[0], lng: pickup[1], timestamp: null, description: 'Pickup' },
-                { lat: dropoff[0], lng: dropoff[1], timestamp: null, description: 'Dropoff' }
-              ]);
-            }
-          } else {
-            setWaypoints([]);
-          }
-        }
-      } else {
-        console.log('No tracking events found for this shipment');
-        setWaypoints([]);
       }
-      
+
+      const seen = new Set();
+      const trackedPoints = [];
+      sortedEvents.forEach(event => {
+        const key = `${event.lat}-${event.lng}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          trackedPoints.push({
+            coord: [parseFloat(event.lat), parseFloat(event.lng)],
+            timestamp: event.created_at,
+            description: event.location_description,
+          });
+        }
+      });
+
+      // Assemble the full ordered route: pickup, tracked pings (deduped), dropoff
+      const orderedCoords = [];
+      if (pickup) orderedCoords.push(pickup);
+      trackedPoints.forEach(p => orderedCoords.push(p.coord));
+      if (dropoff) orderedCoords.push(dropoff);
+
+      if (orderedCoords.length < 2) {
+        // Not enough data to draw anything meaningful
+        setWaypoints(trackedPoints.map(p => ({
+          lat: p.coord[0], lng: p.coord[1], timestamp: p.timestamp, description: p.description,
+        })));
+        return;
+      }
+
+      let finalWaypoints;
+
+      if (needsRouting(orderedCoords)) {
+        try {
+          const routed = await routeViaOSRM(orderedCoords);
+          if (routed) {
+            finalWaypoints = routed.map((coord, i) => ({
+              lat: coord[0],
+              lng: coord[1],
+              timestamp: null,
+              description: i === 0 ? 'Pickup (routed)'
+                : i === routed.length - 1 ? 'Dropoff (routed)'
+                : 'Route point',
+            }));
+          }
+        } catch (routingError) {
+          console.error('OSRM routing failed:', routingError);
+        }
+      }
+
+      // Fallback: straight line between the known points if routing wasn't
+      // needed, failed, or returned nothing
+      if (!finalWaypoints) {
+        finalWaypoints = orderedCoords.map((coord, i) => ({
+          lat: coord[0],
+          lng: coord[1],
+          timestamp: trackedPoints[i - (pickup ? 1 : 0)]?.timestamp ?? null,
+          description: i === 0 ? 'Pickup'
+            : i === orderedCoords.length - 1 ? 'Dropoff'
+            : 'Tracked point',
+        }));
+      }
+
+      setWaypoints(finalWaypoints);
     } catch (error) {
       console.error('Error fetching trip details:', error);
-      // Clear data on error
       setWaypoints([]);
-      setTripDetails(null);
     } finally {
       setMapLoading(false);
     }

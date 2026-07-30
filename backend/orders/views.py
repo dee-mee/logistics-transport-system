@@ -29,22 +29,29 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 class ShipmentViewSet(viewsets.ModelViewSet):
     # module = PermissionGroup.Module.ORDERS
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    permission_classes = [rest_permissions.IsAuthenticated]  # Changed for testing
     serializer_class = ShipmentSerializer
     queryset = Shipment.objects.all()
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["driver", "status"]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["status", "priority", "customer"]
+    search_fields = ["tracking_code", "pickup_address", "dropoff_address"]
     
     def get_queryset(self):
-        # For now, return all shipments without organization filtering
-        # TODO: Implement proper organization filtering
-        queryset = Shipment.objects.all().select_related("customer", "driver", "vehicle").order_by("-created_at")
-        
-        # Filter by driver if provided (for drivers viewing their own shipments)
-        driver_id = self.request.query_params.get('driver')
-        if driver_id:
-            queryset = queryset.filter(driver_id=driver_id)
-            
+        queryset = (
+            Shipment.objects.all()
+            .select_related("customer", "driver", "driver__user", "vehicle")
+            .order_by("-created_at")
+        )
+
+        user = self.request.user
+
+        # Drivers only ever see shipments assigned to their own Driver record.
+        # Everyone else (dispatchers, admins, etc.) sees the full org list —
+        # tighten this further with organization-scoping when that's implemented.
+        driver_profile = getattr(user, "driver_profile", None)
+        if driver_profile is not None:
+            queryset = queryset.filter(driver=driver_profile)
+
         return queryset
     
     def perform_create(self, serializer):
@@ -64,6 +71,20 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         try:
             from fleet.models import Driver, Vehicle
             driver = Driver.objects.get(id=driver_id)
+            
+            # Check if driver already has active shipments (assigned or in_transit)
+            active_shipments = Shipment.objects.filter(
+                driver=driver,
+                status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+            ).exclude(id=shipment.id)
+            
+            if active_shipments.exists():
+                return Response({
+                    'error': f'Driver {driver.user.get_full_name() or driver.user.username} is already assigned to an active shipment',
+                    'driver_status': 'busy',
+                    'active_shipments': list(active_shipments.values_list('tracking_code', flat=True))
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             if vehicle_id:
                 vehicle = Vehicle.objects.get(id=vehicle_id)
             else:
@@ -108,7 +129,3 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         # )
         
         return Response(ShipmentSerializer(shipment).data)
-    
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["status", "priority", "customer"]
-    search_fields = ["tracking_code", "pickup_address", "dropoff_address"]

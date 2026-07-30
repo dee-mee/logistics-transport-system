@@ -12,7 +12,7 @@ from .serializers import (
     VehicleStatusSummarySerializer, ShipmentStatusSummarySerializer, ActivityFeedSerializer
 )
 from permissions.permissions import HasModuleAccess
-from permissions.models import PermissionGroup
+from permissions.models import PermissionGroup, RolePermission
 
 
 class DashboardWidgetViewSet(viewsets.ModelViewSet):
@@ -335,6 +335,11 @@ class DashboardMetricsViewSet(viewsets.ViewSet):
     module = PermissionGroup.Module.DASHBOARD
     permission_classes = [HasModuleAccess]
     queryset = None  # This is a read-only ViewSet without models
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Override to ensure VIEW access is sufficient for all actions
+        self.required_access_level = RolePermission.AccessLevel.VIEW
     
     def list(self, request):
         """Get comprehensive dashboard metrics."""

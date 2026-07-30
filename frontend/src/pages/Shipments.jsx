@@ -151,6 +151,7 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
   const [vehicles, setVehicles] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [activeShipments, setActiveShipments] = useState([]);
 
   useEffect(() => {
     // Clear previous events when shipment changes
@@ -165,7 +166,26 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     // Load drivers and vehicles for assignment
     client.get("/fleet/drivers/").then((res) => setDrivers(res.data.results ?? res.data));
     client.get("/fleet/vehicles/").then((res) => setVehicles(res.data.results ?? res.data));
+    
+    // Load active shipments to check driver availability
+    client.get("/orders/shipments/").then((res) => {
+      const allShipments = res.data.results ?? res.data;
+      const active = allShipments.filter(s => 
+        s.status === 'assigned' || s.status === 'in_transit'
+      );
+      setActiveShipments(active);
+    });
   }, [shipment.id]);
+
+  // Helper to check if a driver is busy
+  const isDriverBusy = (driverId) => {
+    return activeShipments.some(s => s.driver === driverId && s.id !== shipment.id);
+  };
+
+  // Helper to get the busy driver's active shipment
+  const getDriverActiveShipment = (driverId) => {
+    return activeShipments.find(s => s.driver === driverId && s.id !== shipment.id);
+  };
 
   async function addEvent(e) {
     e.preventDefault();
@@ -205,7 +225,13 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
       onUpdated();
     } catch (err) {
       console.error(err);
-      alert("Failed to assign driver");
+      // Handle busy driver error specifically
+      if (err.response?.data?.driver_status === 'busy') {
+        const activeShipments = err.response.data.active_shipments?.join(', ') || '';
+        alert(`Driver is busy with active shipment(s): ${activeShipments}`);
+      } else {
+        alert(err.response?.data?.error || "Failed to assign driver");
+      }
     } finally {
       setBusy(false);
     }
@@ -283,12 +309,25 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
                       className="w-full border border-line rounded-lg px-3 py-2 text-sm"
                     >
                       <option value="">Select driver…</option>
-                      {drivers.map((driver) => (
-                        <option key={driver.id} value={driver.id}>
-                          {driver.user?.first_name} {driver.user?.last_name} ({driver.license_number})
-                        </option>
-                      ))}
+                      {drivers.map((driver) => {
+                        const busy = isDriverBusy(driver.id);
+                        return (
+                          <option 
+                            key={driver.id} 
+                            value={driver.id}
+                            disabled={busy}
+                          >
+                            {driver.user?.first_name} {driver.user?.last_name} ({driver.license_number})
+                            {busy ? ' - Busy' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
+                    {selectedDriver && isDriverBusy(selectedDriver) && (
+                      <div className="text-xs text-rust bg-rust-light rounded-lg px-3 py-2">
+                        This driver is currently busy with shipment: {getDriverActiveShipment(selectedDriver)?.tracking_code}
+                      </div>
+                    )}
                     <select
                       value={selectedVehicle}
                       onChange={(e) => setSelectedVehicle(e.target.value)}
@@ -409,17 +448,8 @@ export default function Shipments() {
     
     client.get(`/orders/shipments/${q}`)
       .then((res) => {
-        let shipments = res.data.results ?? res.data;
-        
-        // If user is a driver, filter to show only their assigned shipments
-        if (user?.role === 'driver') {
-          shipments = shipments.filter(shipment => {
-            // Filter by driver name or user ID as a temporary workaround
-            return shipment.driver_name && shipment.driver_name.includes(user.username) || 
-                   shipment.driver_id === user.id;
-          });
-        }
-        
+        // Backend now scopes shipments per-user automatically
+        const shipments = res.data.results ?? res.data;
         setShipments(shipments);
       })
       .finally(() => setLoading(false));
