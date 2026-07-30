@@ -50,7 +50,8 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
       );
-      const data = await response.json;
+      const clonedResponse = response.clone();
+      const data = await clonedResponse.json();
       console.log('Search results for:', searchQuery, data);
       setSuggestions(data);
     } catch (error) {
@@ -145,7 +146,8 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
       );
-      const data = await response.json();
+      const clonedResponse = response.clone();
+      const data = await clonedResponse.json();
       if (data && data.length > 0) {
         const suggestion = data[0];
         const address = suggestion.display_name;
