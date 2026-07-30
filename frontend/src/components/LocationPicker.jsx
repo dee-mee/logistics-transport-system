@@ -253,8 +253,7 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0 cursor-pointer"
               >
-                <div className="font-medium text-gray-800">{suggestion.display_name.split(',')[0]}</div>
-                <div className="text-gray-500 text-xs truncate">{suggestion.display_name}</div>
+                <div className="font-medium text-gray-800">{suggestion.display_name}</div>
               </button>
             ))}
           </div>
