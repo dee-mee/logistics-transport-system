@@ -50,7 +50,8 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
       );
-      const data = await response.json();
+      const data = await response.json;
+      console.log('Search results for:', searchQuery, data);
       setSuggestions(data);
     } catch (error) {
       console.error('Geocoding error:', error);
@@ -237,6 +238,7 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
 
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div className="text-xs text-gray-500 px-3 py-1">{suggestions.length} suggestions found</div>
             {suggestions.map((suggestion, index) => (
               <button
                 key={index}
@@ -253,6 +255,11 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
                 <div className="text-gray-500 text-xs truncate">{suggestion.display_name}</div>
               </button>
             ))}
+          </div>
+        )}
+        {showSuggestions && suggestions.length === 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-500">
+            No suggestions found
           </div>
         )}
 
