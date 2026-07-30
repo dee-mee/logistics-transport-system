@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'organizations',
     'permissions',
     'fleet',
+    'django.contrib.gis',
     'orders',
     'dispatch',
     'tracking',
@@ -241,8 +242,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': env('DB_NAME', default='logistics'),
+        'USER': env('DB_USER', default='logistics'),
+        'PASSWORD': env('DB_PASSWORD', default='changeme'),
+        'HOST': env('DB_HOST', default='localhost'),
+        'PORT': env('DB_PORT', default='5432'),
     }
 }
 
