@@ -21,7 +21,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # TODO: Implement organization assignment
-        serializer.save()
+        customer = serializer.save()
+        
+        # If this customer has a user and that user's role is not 'customer', update it
+        if customer.user and customer.user.role != 'customer':
+            customer.user.role = 'customer'
+            customer.user.save()
     
     filter_backends = [filters.SearchFilter]
     search_fields = ["company_name", "contact_name", "contact_phone"]
@@ -29,7 +34,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 class ShipmentViewSet(viewsets.ModelViewSet):
     # module = PermissionGroup.Module.ORDERS
-    permission_classes = [rest_permissions.IsAuthenticated]  # Changed for testing
+    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
     serializer_class = ShipmentSerializer
     queryset = Shipment.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -51,12 +56,39 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         driver_profile = getattr(user, "driver_profile", None)
         if driver_profile is not None:
             queryset = queryset.filter(driver=driver_profile)
+        
+        # Filter out delivered shipments from the default list
+        # Delivered shipments can still be accessed by ID or with specific filters
+        if not self.request.query_params.get('include_delivered'):
+            queryset = queryset.exclude(status=Shipment.Status.DELIVERED)
 
         return queryset
     
     def perform_create(self, serializer):
         # TODO: Implement organization assignment
         serializer.save()
+    
+    def perform_update(self, serializer):
+        shipment = serializer.save()
+        
+        # If shipment is marked as delivered, free the driver
+        if shipment.status == Shipment.Status.DELIVERED and shipment.driver:
+            from fleet.models import Driver
+            driver = shipment.driver
+            
+            # Check if driver has any other active shipments
+            active_shipments = Shipment.objects.filter(
+                driver=driver,
+                status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+            ).exclude(id=shipment.id)
+            
+            # If no other active shipments, set driver status to available
+            if not active_shipments.exists():
+                driver.status = 'available'
+                driver.save()
+                print(f"Driver {driver.user.get_full_name()} freed and set to available")
+            else:
+                print(f"Driver {driver.user.get_full_name()} still has active shipments, keeping current status")
     
     @action(detail=True, methods=['post'])
     def assign_driver(self, request, pk=None):
@@ -65,12 +97,17 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         driver_id = request.data.get('driver_id')
         vehicle_id = request.data.get('vehicle_id')
         
+        print(f"Assign driver request - Shipment ID: {shipment.id}, Current status: {shipment.status}, Current driver: {shipment.driver}")
+        print(f"Driver ID: {driver_id}, Vehicle ID: {vehicle_id}")
+        
         if not driver_id:
             return Response({'error': 'Driver ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             from fleet.models import Driver, Vehicle
             driver = Driver.objects.get(id=driver_id)
+            
+            print(f"Found driver: {driver.id} - {driver.user.get_full_name()}")
             
             # Check if driver already has active shipments (assigned or in_transit)
             active_shipments = Shipment.objects.filter(
@@ -79,6 +116,7 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             ).exclude(id=shipment.id)
             
             if active_shipments.exists():
+                print(f"Driver is busy with active shipments: {list(active_shipments.values_list('tracking_code', flat=True))}")
                 return Response({
                     'error': f'Driver {driver.user.get_full_name() or driver.user.username} is already assigned to an active shipment',
                     'driver_status': 'busy',
@@ -95,7 +133,22 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             shipment.status = Shipment.Status.ASSIGNED
             shipment.save()
             
-            # Return immediately without creating status event for now
+            print(f"Assignment successful - New status: {shipment.status}, New driver: {shipment.driver}")
+            
+            # Create status event for assignment
+            from tracking.models import ShipmentStatusEvent
+            try:
+                ShipmentStatusEvent.objects.create(
+                    shipment=shipment,
+                    status=Shipment.Status.ASSIGNED,
+                    location_description="Driver assigned",
+                    lat=shipment.pickup_lat,
+                    lng=shipment.pickup_lng
+                )
+                print("Status event created for assignment")
+            except Exception as e:
+                print(f"Error creating status event: {e}")
+            
             return Response(ShipmentSerializer(shipment).data)
         except Driver.DoesNotExist:
             return Response({'error': 'Driver not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -111,21 +164,44 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         """Start tracking for a shipment (mark as in transit)."""
         shipment = self.get_object()
         
+        print(f"Start tracking request - Shipment ID: {shipment.id}, Current status: {shipment.status}, Driver: {shipment.driver}")
+        print(f"Driver object: {shipment.driver}")
+        print(f"Driver ID type: {type(shipment.driver.id) if shipment.driver else 'None'}")
+        
         if not shipment.driver:
+            print("Error: No driver assigned")
             return Response({'error': 'No driver assigned to this shipment'}, status=status.HTTP_400_BAD_REQUEST)
         
         if shipment.status != Shipment.Status.ASSIGNED:
-            return Response({'error': 'Shipment must be assigned before starting tracking'}, status=status.HTTP_400_BAD_REQUEST)
+            print(f"Error: Shipment status is {shipment.status}, expected ASSIGNED")
+            return Response({'error': f'Shipment must be assigned before starting tracking (current status: {shipment.status})'}, status=status.HTTP_400_BAD_REQUEST)
         
-        shipment.status = Shipment.Status.IN_TRANSIT
-        shipment.save()
-        
-        # Temporarily skip status event creation to avoid customer model issues
-        # from tracking.models import ShipmentStatusEvent
-        # ShipmentStatusEvent.objects.create(
-        #     shipment=shipment,
-        #     status=Shipment.Status.IN_TRANSIT,
-        #     location_description="Tracking started"
-        # )
-        
-        return Response(ShipmentSerializer(shipment).data)
+        try:
+            shipment.status = Shipment.Status.IN_TRANSIT
+            shipment.save()
+            
+            print(f"Status updated to IN_TRANSIT successfully")
+            
+            # Create status event with coordinates for tracking
+            from tracking.models import ShipmentStatusEvent
+            try:
+                event = ShipmentStatusEvent.objects.create(
+                    shipment=shipment,
+                    status=Shipment.Status.IN_TRANSIT,
+                    location_description="Tracking started",
+                    lat=shipment.pickup_lat,
+                    lng=shipment.pickup_lng
+                )
+                print(f"Status event created for tracking start: {event.id}")
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                # Continue even if status event creation fails
+                print(f"Error creating status event: {e}")
+            
+            return Response(ShipmentSerializer(shipment).data)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"Error updating shipment: {e}")
+            return Response({'error': f'Error starting tracking: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

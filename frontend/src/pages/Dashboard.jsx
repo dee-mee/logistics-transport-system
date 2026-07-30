@@ -64,11 +64,13 @@ export default function Dashboard() {
       
       if (shipmentsRes.data?.results) {
         const shipments = shipmentsRes.data.results;
-        setActiveOrders(shipments);
+        // Filter out delivered shipments from active orders
+        const activeShipments = shipments.filter(s => s.status !== 'delivered');
+        setActiveOrders(activeShipments);
         
         // Calculate stats from real data
-        const totalShipments = shipments.length;
-        const inTransitShipments = shipments.filter(s => s.status === 'in_transit').length;
+        const totalShipments = activeShipments.length;
+        const inTransitShipments = activeShipments.filter(s => s.status === 'in_transit').length;
         
         setStats({
           totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
@@ -78,9 +80,9 @@ export default function Dashboard() {
         });
         
         // Select first shipment if none selected, prefer in_transit shipments
-        if (!selectedOrderId && shipments.length > 0) {
-          const inTransitShipment = shipments.find(s => s.status === 'in_transit');
-          setSelectedOrderId(inTransitShipment ? inTransitShipment.id : shipments[0].id);
+        if (!selectedOrderId && activeShipments.length > 0) {
+          const inTransitShipment = activeShipments.find(s => s.status === 'in_transit');
+          setSelectedOrderId(inTransitShipment ? inTransitShipment.id : activeShipments[0].id);
         }
       }
       
@@ -133,10 +135,15 @@ export default function Dashboard() {
       setWaypoints(null);
       setTripDetails(null);
 
+      console.log('Fetching trip details for order:', orderId);
+
       const [shipmentRes, eventsRes] = await Promise.all([
         client.get(`/orders/shipments/${orderId}/`),
         client.get(`/tracking/status-events/?shipment=${orderId}`),
       ]);
+
+      console.log('Shipment response:', shipmentRes.data);
+      console.log('Events response:', eventsRes.data);
 
       if (shipmentRes.data) setTripDetails(shipmentRes.data);
 
@@ -148,6 +155,9 @@ export default function Dashboard() {
         ? [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)]
         : null;
 
+      console.log('Pickup coords:', pickup);
+      console.log('Dropoff coords:', dropoff);
+
       // Build the ordered list of known points: pickup -> tracking pings -> dropoff
       let sortedEvents = [];
       if (eventsRes.data?.results) {
@@ -155,6 +165,9 @@ export default function Dashboard() {
           .filter(e => e.lat && e.lng)
           .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       }
+
+      console.log('Sorted events with coordinates:', sortedEvents);
+      console.log('Number of events with coordinates:', sortedEvents.length);
 
       const seen = new Set();
       const trackedPoints = [];
@@ -170,11 +183,16 @@ export default function Dashboard() {
         }
       });
 
+      console.log('Tracked points:', trackedPoints);
+
       // Assemble the full ordered route: pickup, tracked pings (deduped), dropoff
       const orderedCoords = [];
       if (pickup) orderedCoords.push(pickup);
       trackedPoints.forEach(p => orderedCoords.push(p.coord));
       if (dropoff) orderedCoords.push(dropoff);
+
+      console.log('Ordered coords:', orderedCoords);
+      console.log('Number of ordered coords:', orderedCoords.length);
 
       if (orderedCoords.length < 2) {
         // Not enough data to draw anything meaningful

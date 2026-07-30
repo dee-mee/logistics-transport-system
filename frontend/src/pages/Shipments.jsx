@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, X, MapPin, User, Truck, Play } from "lucide-react";
+import { Plus, X, MapPin, User, Truck, Play, Map } from "lucide-react";
 import client from "../api/client";
 import StatusBadge from "../components/StatusBadge";
 import ManifestTag from "../components/ManifestTag";
@@ -11,17 +11,32 @@ const STATUS_OPTIONS = ["pending", "confirmed", "assigned", "in_transit", "deliv
 
 function CreateShipmentModal({ onClose, onCreated }) {
   const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [form, setForm] = useState({
     customer: "", pickup_address: "", dropoff_address: "", weight_kg: "", priority: "standard",
     pickup_lat: null, pickup_lng: null, dropoff_lat: null, dropoff_lng: null,
   });
   const [newCustomer, setNewCustomer] = useState({ contact_name: "", contact_phone: "", company_name: "" });
-  const [useNewCustomer, setUseNewCustomer] = useState(true);
+  const [useNewCustomer, setUseNewCustomer] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    client.get("/orders/customers/").then((res) => setCustomers(res.data.results ?? res.data));
+    setLoadingCustomers(true);
+    client.get("/orders/customers/").then((res) => {
+      console.log('Customers loaded:', res.data.results ?? res.data);
+      setCustomers(res.data.results ?? res.data);
+    }).catch((err) => {
+      console.error('Error loading customers:', err);
+      setCustomers([]);
+    }).finally(() => {
+      setLoadingCustomers(false);
+    });
+    client.get("/fleet/drivers/").then((res) => {
+      console.log('Drivers loaded:', res.data.results ?? res.data);
+    }).catch((err) => {
+      console.error('Error loading drivers:', err);
+    });
   }, []);
 
   async function handleSubmit(e) {
@@ -34,17 +49,54 @@ function CreateShipmentModal({ onClose, onCreated }) {
         const res = await client.post("/orders/customers/", newCustomer);
         customerId = res.data.id;
       }
-      await client.post("/orders/shipments/", { 
-        ...form, 
+      
+      // Debug logging
+      console.log('Form state before submission:', form);
+      console.log('Pickup address:', form.pickup_address);
+      console.log('Dropoff address:', form.dropoff_address);
+      
+      // Validate required fields
+      if (!form.pickup_address || form.pickup_address.trim() === '') {
+        setError("Pickup address is required");
+        setBusy(false);
+        return;
+      }
+      if (!form.dropoff_address || form.dropoff_address.trim() === '') {
+        setError("Dropoff address is required");
+        setBusy(false);
+        return;
+      }
+      
+      // Round coordinates to 6 decimal places
+      const roundTo6Decimals = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = parseFloat(value);
+        if (isNaN(num)) return null;
+        return Math.round(num * 1000000) / 1000000;
+      };
+      
+      const shipmentData = {
         customer: customerId,
-        pickup_lat: form.pickup_lat,
-        pickup_lng: form.pickup_lng,
-        dropoff_lat: form.dropoff_lat,
-        dropoff_lng: form.dropoff_lng
-      });
+        pickup_address: form.pickup_address.trim(),
+        dropoff_address: form.dropoff_address.trim(),
+        weight_kg: parseFloat(form.weight_kg) || 0,
+        priority: form.priority || 'standard',
+        pickup_lat: roundTo6Decimals(form.pickup_lat),
+        pickup_lng: roundTo6Decimals(form.pickup_lng),
+        dropoff_lat: roundTo6Decimals(form.dropoff_lat),
+        dropoff_lng: roundTo6Decimals(form.dropoff_lng)
+      };
+      
+      console.log('Shipment data to send:', shipmentData);
+      
+      await client.post("/orders/shipments/", shipmentData);
       onCreated();
     } catch (err) {
-      setError("Couldn't create that shipment — check the fields and try again.");
+      console.error('Error creating shipment:', err);
+      const errorMessage = err.response?.data?.detail || err.response?.data?.error || 
+                          Object.values(err.response?.data || {}).flat().join(', ') ||
+                          "Couldn't create that shipment — check the fields and try again.";
+      setError(errorMessage);
     } finally {
       setBusy(false);
     }
@@ -88,11 +140,17 @@ function CreateShipmentModal({ onClose, onCreated }) {
               </div>
             ) : (
               <select required value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })}
-                className="w-full border border-line rounded-lg px-3 py-2 text-sm">
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm" disabled={loadingCustomers}>
                 <option value="">Select a customer…</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>
-                ))}
+                {loadingCustomers ? (
+                  <option value="" disabled>Loading customers…</option>
+                ) : customers.length === 0 ? (
+                  <option value="" disabled>No customers available</option>
+                ) : (
+                  customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>
+                  ))
+                )}
               </select>
             )}
           </div>
@@ -101,16 +159,28 @@ function CreateShipmentModal({ onClose, onCreated }) {
             <LocationPicker
               label="Pickup address"
               value={form.pickup_address}
-              onChange={(value) => setForm({ ...form, pickup_address: value })}
-              onCoordinatesChange={(coords) => setForm({ ...form, pickup_lat: coords.lat, pickup_lng: coords.lng })}
+              onChange={(value) => {
+                console.log('Pickup address changed:', value);
+                setForm({ ...form, pickup_address: value });
+              }}
+              onCoordinatesChange={(coords) => {
+                console.log('Pickup coordinates changed:', coords);
+                setForm({ ...form, pickup_lat: coords.lat, pickup_lng: coords.lng });
+              }}
             />
           </div>
           <div>
             <LocationPicker
               label="Dropoff address"
               value={form.dropoff_address}
-              onChange={(value) => setForm({ ...form, dropoff_address: value })}
-              onCoordinatesChange={(coords) => setForm({ ...form, dropoff_lat: coords.lat, dropoff_lng: coords.lng })}
+              onChange={(value) => {
+                console.log('Dropoff address changed:', value);
+                setForm({ ...form, dropoff_address: value });
+              }}
+              onCoordinatesChange={(coords) => {
+                console.log('Dropoff coordinates changed:', coords);
+                setForm({ ...form, dropoff_lat: coords.lat, dropoff_lng: coords.lng });
+              }}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -192,12 +262,19 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     if (!newStatus) return;
     setBusy(true);
     try {
+      // Update the shipment status directly
+      await client.patch(`/orders/shipments/${shipment.id}/`, { 
+        status: newStatus
+      });
+      
+      // Also create a status event for tracking history
       await client.post("/tracking/status-events/", { 
         shipment: shipment.id, 
         status: newStatus, 
         note,
         location_description: note
       });
+      
       const res = await client.get(`/tracking/status-events/?shipment=${shipment.id}`);
       setEvents(res.data.results ?? res.data);
       setNote("");
@@ -205,7 +282,10 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
       onUpdated();
     } catch (err) {
       console.error(err);
-      alert("Failed to add status event");
+      const errorMessage = err.response?.data?.detail || err.response?.data?.error || 
+                          Object.values(err.response?.data || {}).flat().join(', ') ||
+                          "Failed to update shipment status";
+      alert(errorMessage);
     } finally {
       setBusy(false);
     }
@@ -240,23 +320,16 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
   async function startTracking() {
     setBusy(true);
     try {
-      await client.post(`/orders/shipments/${shipment.id}/start_tracking/`);
+      console.log('Starting tracking for shipment:', shipment.id, 'Status:', shipment.status, 'Driver:', shipment.driver);
       
-      // Create a status event with coordinates for tracking
-      if (shipment.pickup_lat && shipment.pickup_lng) {
-        await client.post("/tracking/status-events/", {
-          shipment: shipment.id,
-          status: "in_transit",
-          location_description: "Tracking started",
-          lat: shipment.pickup_lat,
-          lng: shipment.pickup_lng
-        });
-      }
+      const response = await client.post(`/orders/shipments/${shipment.id}/start_tracking/`);
       
       onUpdated();
     } catch (err) {
-      console.error(err);
-      alert("Failed to start tracking");
+      console.error('Error starting tracking:', err);
+      const errorMessage = err.response?.data?.error || err.response?.data?.detail || 
+                          "Failed to start tracking. Please ensure the shipment has a driver assigned and is in 'assigned' status.";
+      alert(errorMessage);
     } finally {
       setBusy(false);
     }
@@ -282,6 +355,9 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
               <div className="flex justify-between"><dt className="text-ink-700/60">Priority</dt><dd className="capitalize">{shipment.priority}</dd></div>
               {shipment.driver_name && (
                 <div className="flex justify-between"><dt className="text-ink-700/60">Driver</dt><dd className="text-right">{shipment.driver_name}</dd></div>
+              )}
+              {shipment.driver_details && (
+                <div className="flex justify-between"><dt className="text-ink-700/60">Driver</dt><dd className="text-right">{shipment.driver_details.user_first_name} {shipment.driver_details.user_last_name}</dd></div>
               )}
               {shipment.vehicle_plate && (
                 <div className="flex justify-between"><dt className="text-ink-700/60">Vehicle</dt><dd className="text-right">{shipment.vehicle_plate}</dd></div>
@@ -311,13 +387,16 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
                       <option value="">Select driver…</option>
                       {drivers.map((driver) => {
                         const busy = isDriverBusy(driver.id);
+                        const displayName = driver.user_first_name && driver.user_last_name 
+                          ? `${driver.user_first_name} ${driver.user_last_name}`
+                          : driver.user_username || driver.user_name || 'Unknown';
                         return (
                           <option 
                             key={driver.id} 
                             value={driver.id}
                             disabled={busy}
                           >
-                            {driver.user?.first_name} {driver.user?.last_name} ({driver.license_number})
+                            {displayName} ({driver.license_number})
                             {busy ? ' - Busy' : ''}
                           </option>
                         );
@@ -370,6 +449,11 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
                     </>
                   )}
                 </div>
+                {shipment.driver_details && (
+                  <div className="text-xs text-gray-500">
+                    License: {shipment.driver_details.license_number}
+                  </div>
+                )}
                 {shipment.status === 'assigned' && (
                   <button
                     onClick={startTracking}
@@ -379,6 +463,12 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
                     <Play size={16} />
                     {busy ? "Starting…" : "Start Tracking"}
                   </button>
+                )}
+                {shipment.status === 'in_transit' && (
+                  <div className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium">
+                    <Map size={16} />
+                    Tracking Active
+                  </div>
                 )}
               </div>
             )}
@@ -448,9 +538,11 @@ export default function Shipments() {
     
     client.get(`/orders/shipments/${q}`)
       .then((res) => {
-        // Backend now scopes shipments per-user automatically
+        // Backend now scopes shipments per-user automatically and filters out delivered
         const shipments = res.data.results ?? res.data;
-        setShipments(shipments);
+        // Additional client-side filter to ensure delivered shipments are not shown
+        const activeShipments = shipments.filter(s => s.status !== 'delivered');
+        setShipments(activeShipments);
       })
       .finally(() => setLoading(false));
   }
@@ -476,7 +568,7 @@ export default function Shipments() {
       <div className="flex gap-2 mb-4">
         <button onClick={() => setStatusFilter("")}
           className={`text-xs font-medium px-2.5 py-1 rounded-full ${!statusFilter ? "bg-ink text-white" : "bg-line/40 text-ink-700"}`}>
-          All
+          Active
         </button>
         {STATUS_OPTIONS.map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}

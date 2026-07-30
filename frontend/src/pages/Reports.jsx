@@ -95,10 +95,17 @@ function Reports() {
 
   async function createReport(reportType) {
     try {
+      // Helper function to convert to title case
+      const toTitleCase = (str) => {
+        return str.replace('_', ' ').replace(/\w\S*/g, (txt) => {
+          return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        });
+      };
+      
       const reportData = {
         report_type: reportType,
-        name: `${reportType.replace('_', ' ').title()} Report`,
-        description: `Automatically generated ${reportType.replace('_', ' ')} report`,
+        name: `${toTitleCase(reportType)} Report`,
+        description: `Automatically generated ${toTitleCase(reportType)} report`,
         start_date: new Date(Date.now() - parseInt(dateRange) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0],
         file_format: 'csv'

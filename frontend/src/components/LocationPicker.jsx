@@ -63,14 +63,19 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
   // Reverse geocode to get address from coordinates
   const reverseGeocode = async (lat, lng) => {
     try {
+      // Round to 6 decimal places for API call
+      const roundedLat = Math.round(lat * 1000000) / 1000000;
+      const roundedLng = Math.round(lng * 1000000) / 1000000;
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${roundedLat}&lon=${roundedLng}`
       );
       const data = await response.json();
-      return data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      return data.display_name || `${roundedLat.toFixed(6)}, ${roundedLng.toFixed(6)}`;
     } catch (error) {
       console.error('Reverse geocoding error:', error);
-      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      const roundedLat = Math.round(lat * 1000000) / 1000000;
+      const roundedLng = Math.round(lng * 1000000) / 1000000;
+      return `${roundedLat.toFixed(6)}, ${roundedLng.toFixed(6)}`;
     }
   };
 
@@ -79,6 +84,30 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     setQuery(newValue);
     setShowSuggestions(true);
     searchLocations(newValue);
+    // Update parent form state immediately when typing
+    onChange(newValue);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSearchAddress();
+    }
+  };
+
+  const handleInputBlur = () => {
+    // Call onChange when user leaves the input field
+    if (query && query.trim()) {
+      onChange(query);
+    }
+    setShowSuggestions(false);
+  };
+
+  const handleUseCurrentAddress = () => {
+    if (query && query.trim()) {
+      onChange(query);
+      setShowSuggestions(false);
+    }
   };
 
   const handleSuggestionClick = async (suggestion) => {
@@ -87,31 +116,73 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     setShowSuggestions(false);
     const lat = parseFloat(suggestion.lat);
     const lng = parseFloat(suggestion.lon);
+    // Round to 6 decimal places to match backend validation
+    const roundedLat = Math.round(lat * 1000000) / 1000000;
+    const roundedLng = Math.round(lng * 1000000) / 1000000;
     setSelectedLocation({
-      lat: lat,
-      lng: lng,
+      lat: roundedLat,
+      lng: roundedLng,
       address: address
     });
-    setMapCenter([lat, lng]);
+    setMapCenter([roundedLat, roundedLng]);
     setMapZoom(13);
     onChange(address);
     if (onCoordinatesChange) {
-      onCoordinatesChange({ lat, lng });
+      onCoordinatesChange({ lat: roundedLat, lng: roundedLng });
     }
     setShowMap(true);
   };
 
+  const handleSearchAddress = async () => {
+    if (!query || query.length < 3) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const suggestion = data[0];
+        const address = suggestion.display_name;
+        const lat = parseFloat(suggestion.lat);
+        const lng = parseFloat(suggestion.lon);
+        const roundedLat = Math.round(lat * 1000000) / 1000000;
+        const roundedLng = Math.round(lng * 1000000) / 1000000;
+        setSelectedLocation({
+          lat: roundedLat,
+          lng: roundedLng,
+          address: address
+        });
+        setMapCenter([roundedLat, roundedLng]);
+        setMapZoom(13);
+        onChange(address);
+        if (onCoordinatesChange) {
+          onCoordinatesChange({ lat: roundedLat, lng: roundedLng });
+        }
+        setShowMap(true);
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMapClick = async (latlng) => {
     const address = await reverseGeocode(latlng.lat, latlng.lng);
+    // Round to 6 decimal places to match backend validation
+    const roundedLat = Math.round(latlng.lat * 1000000) / 1000000;
+    const roundedLng = Math.round(latlng.lng * 1000000) / 1000000;
     setQuery(address);
     setSelectedLocation({
-      lat: latlng.lat,
-      lng: latlng.lng,
+      lat: roundedLat,
+      lng: roundedLng,
       address: address
     });
     onChange(address);
     if (onCoordinatesChange) {
-      onCoordinatesChange({ lat: latlng.lat, lng: latlng.lng });
+      onCoordinatesChange({ lat: roundedLat, lng: roundedLng });
     }
     setShowSuggestions(false);
   };
@@ -146,6 +217,8 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
           type="text"
           value={query}
           onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          onKeyDown={handleKeyDown}
           onFocus={() => setShowSuggestions(true)}
           placeholder="Search for a location..."
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm pr-10"

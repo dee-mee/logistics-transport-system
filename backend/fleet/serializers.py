@@ -18,34 +18,48 @@ class VehicleListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views."""
     class Meta:
         model = Vehicle
-        fields = ['id', 'plate_number', 'vehicle_type', 'make', 'model', 'status', 'ownership', 'current_odometer']
+        fields = ['id', 'plate_number', 'vehicle_type', 'make', 'model', 'year', 'capacity_kg', 'status', 'ownership', 'current_odometer']
 
 
 class DriverSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.get_full_name", read_only=True)
     user_email = serializers.CharField(source="user.email", read_only=True)
+    user_first_name = serializers.CharField(source="user.first_name", read_only=True)
+    user_last_name = serializers.CharField(source="user.last_name", read_only=True)
+    user_username = serializers.CharField(source="user.username", read_only=True)
+    user_phone = serializers.CharField(source="user.phone_number", read_only=True)
     assigned_vehicle_plate = serializers.CharField(source="assigned_vehicle.plate_number", read_only=True)
     
     class Meta:
         model = Driver
-        fields = ['id', 'organization', 'user', 'user_name', 'user_email',
+        fields = ['id', 'organization', 'user', 'user_name', 'user_email', 'user_first_name', 'user_last_name', 'user_username', 'user_phone',
                   'license_number', 'license_type', 'license_expiry', 'license_issuing_authority',
                   'employment_type', 'hire_date', 'termination_date', 'hourly_rate', 'salary',
-                  'phone_number', 'emergency_contact_name', 'emergency_contact_phone',
+                  'emergency_contact_name', 'emergency_contact_phone',
                   'assigned_vehicle', 'assigned_vehicle_plate', 'status',
                   'total_trips', 'total_distance_km', 'safety_score', 'on_time_performance',
                   'certifications', 'medical_exam_expiry', 'notes', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+    
+    def validate(self, attrs):
+        # Set default license expiry if not provided
+        if 'license_expiry' not in attrs or attrs['license_expiry'] is None or attrs['license_expiry'] == '':
+            from datetime import datetime, timedelta
+            attrs['license_expiry'] = datetime.now().date() + timedelta(days=365)
+        return attrs
 
 
 class DriverListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views."""
     user_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    user_first_name = serializers.CharField(source="user.first_name", read_only=True)
+    user_last_name = serializers.CharField(source="user.last_name", read_only=True)
+    user_username = serializers.CharField(source="user.username", read_only=True)
     assigned_vehicle_plate = serializers.CharField(source="assigned_vehicle.plate_number", read_only=True)
     
     class Meta:
         model = Driver
-        fields = ['id', 'user_name', 'license_number', 'status', 'employment_type', 'assigned_vehicle_plate']
+        fields = ['id', 'user_name', 'user_first_name', 'user_last_name', 'user_username', 'license_number', 'status', 'employment_type', 'assigned_vehicle_plate']
 
 
 class MaintenanceRecordSerializer(serializers.ModelSerializer):

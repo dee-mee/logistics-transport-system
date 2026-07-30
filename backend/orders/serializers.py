@@ -5,12 +5,14 @@ from .models import Customer, Shipment
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = "__all__"
+        fields = ['id', 'organization', 'user', 'company_name', 'contact_name', 'contact_phone', 'contact_email', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class ShipmentSerializer(serializers.ModelSerializer):
     customer_name = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
+    driver_details = serializers.SerializerMethodField()
     vehicle_plate = serializers.CharField(source="vehicle.plate_number", read_only=True)
 
     class Meta:
@@ -34,6 +36,15 @@ class ShipmentSerializer(serializers.ModelSerializer):
                 return obj.driver.user.get_full_name()
             elif obj.driver:
                 return str(obj.driver)
+            return None
+        except Exception:
+            return None
+    
+    def get_driver_details(self, obj):
+        try:
+            if obj.driver:
+                from fleet.serializers import DriverListSerializer
+                return DriverListSerializer(obj.driver).data
             return None
         except Exception:
             return None

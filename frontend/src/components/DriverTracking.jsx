@@ -42,11 +42,14 @@ function DriverTracking({ shipment }) {
           const events = eventsRes.data.results;
           
           console.log('DriverTracking events:', events);
+          console.log('Number of events:', events.length);
           
           // Extract location history from events, sorted by timestamp
           const sortedEvents = events
             .filter(event => event.lat && event.lng)
             .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          
+          console.log('Sorted events with coordinates:', sortedEvents);
           
           // Remove duplicate coordinates to avoid zigzag
           const uniqueRoutePoints = [];
@@ -64,6 +67,7 @@ function DriverTracking({ shipment }) {
           });
           
           console.log('DriverTracking unique sorted routePoints:', uniqueRoutePoints);
+          console.log('Number of unique route points:', uniqueRoutePoints.length);
           
           setLocationHistory(uniqueRoutePoints);
           
@@ -75,6 +79,7 @@ function DriverTracking({ shipment }) {
             });
           } else if (shipment.pickup_lat && shipment.pickup_lng) {
             // Fallback to pickup location if no tracking events
+            console.log('No tracking events, using pickup location');
             setDriverLocation({
               lat: parseFloat(shipment.pickup_lat),
               lng: parseFloat(shipment.pickup_lng)
@@ -85,6 +90,8 @@ function DriverTracking({ shipment }) {
               const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
               const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
               
+              console.log('Getting OSRM route from pickup to dropoff');
+              
               // Use OSRM routing service to get road-based route
               try {
                 const osrmResponse = await fetch(
@@ -92,20 +99,75 @@ function DriverTracking({ shipment }) {
                 );
                 const osrmData = await osrmResponse.json();
                 
+                console.log('OSRM response:', osrmData);
+                
                 if (osrmData.routes && osrmData.routes[0]) {
                   const routeCoords = osrmData.routes[0].geometry.coordinates.map(coord => 
                     [coord[1], coord[0]] // OSRM returns [lng, lat], we need [lat, lng]
                   );
                   
                   console.log('DriverTracking OSRM route coordinates:', routeCoords);
+                  console.log('Number of route coordinates:', routeCoords.length);
                   setLocationHistory(routeCoords);
+                } else {
+                  console.log('OSRM returned no routes, using straight line');
+                  setLocationHistory([pickup, dropoff]);
                 }
               } catch (routingError) {
                 console.error('DriverTracking OSRM routing failed:', routingError);
                 // Fallback to straight line
+                console.log('Using straight line fallback');
                 setLocationHistory([pickup, dropoff]);
               }
             }
+          }
+        } else {
+          console.log('No events found in response, checking if shipment has coordinates');
+          // Fallback to pickup location if no tracking events
+          if (shipment.pickup_lat && shipment.pickup_lng) {
+            console.log('Using pickup location as fallback');
+            setDriverLocation({
+              lat: parseFloat(shipment.pickup_lat),
+              lng: parseFloat(shipment.pickup_lng)
+            });
+            
+            // If no tracking events but we have pickup/dropoff, get routed route
+            if (shipment.dropoff_lat && shipment.dropoff_lng) {
+              const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
+              const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
+              
+              console.log('Getting OSRM route from pickup to dropoff (no events case)');
+              
+              // Use OSRM routing service to get road-based route
+              try {
+                const osrmResponse = await fetch(
+                  `https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${dropoff[1]},${dropoff[0]}?overview=full&geometries=geojson`
+                );
+                const osrmData = await osrmResponse.json();
+                
+                console.log('OSRM response (no events case):', osrmData);
+                
+                if (osrmData.routes && osrmData.routes[0]) {
+                  const routeCoords = osrmData.routes[0].geometry.coordinates.map(coord => 
+                    [coord[1], coord[0]] // OSRM returns [lng, lat], we need [lat, lng]
+                  );
+                  
+                  console.log('DriverTracking OSRM route coordinates (no events):', routeCoords);
+                  console.log('Number of route coordinates:', routeCoords.length);
+                  setLocationHistory(routeCoords);
+                } else {
+                  console.log('OSRM returned no routes (no events case), using straight line');
+                  setLocationHistory([pickup, dropoff]);
+                }
+              } catch (routingError) {
+                console.error('DriverTracking OSRM routing failed (no events case):', routingError);
+                // Fallback to straight line
+                console.log('Using straight line fallback (no events case)');
+                setLocationHistory([pickup, dropoff]);
+              }
+            }
+          } else {
+            console.log('No coordinates available for shipment');
           }
         }
       } catch (error) {
