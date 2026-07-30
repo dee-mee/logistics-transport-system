@@ -32,6 +32,7 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
   const [mapCenter, setMapCenter] = useState([0, 0]);
   const [mapZoom, setMapZoom] = useState(2);
   const searchRef = useRef(null);
+  const suggestionsRef = useRef(null);
 
   // Update local state when prop changes
   useEffect(() => {
@@ -105,16 +106,11 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     setShowSuggestions(false);
   };
 
-  const handleUseCurrentAddress = () => {
-    if (query && query.trim()) {
-      onChange(query);
-      setShowSuggestions(false);
-    }
-  };
-
   const handleSuggestionClick = async (suggestion) => {
-    console.log('Suggestion clicked:', suggestion);
+    console.log('=== Suggestion clicked ===');
+    console.log('Suggestion data:', suggestion);
     const address = suggestion.display_name;
+    console.log('Full address from suggestion:', address);
     setQuery(address);
     setShowSuggestions(false);
     const lat = parseFloat(suggestion.lat);
@@ -129,13 +125,15 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     });
     setMapCenter([roundedLat, roundedLng]);
     setMapZoom(13);
-    console.log('Calling onChange with address:', address);
+    console.log('About to call onChange with address:', address);
     onChange(address);
+    console.log('onChange call completed');
     if (onCoordinatesChange) {
       console.log('Calling onCoordinatesChange with:', { lat: roundedLat, lng: roundedLng });
       onCoordinatesChange({ lat: roundedLat, lng: roundedLng });
     }
     setShowMap(true);
+    console.log('=== Suggestion click completed ===');
   };
 
   const handleSearchAddress = async () => {
@@ -204,7 +202,12 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
+      // Only close if clicking outside both the input and suggestions
+      const isOutsideInput = searchRef.current && !searchRef.current.contains(event.target);
+      const isOutsideSuggestions = suggestionsRef.current && !suggestionsRef.current.contains(event.target);
+      
+      if (isOutsideInput && isOutsideSuggestions) {
+        console.log('Click outside detected, closing suggestions');
         setShowSuggestions(false);
       }
     };
@@ -239,24 +242,27 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
         </button>
 
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-            <div className="text-xs text-gray-500 px-3 py-1">{suggestions.length} suggestions found</div>
+          <select 
+            ref={suggestionsRef}
+            className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto px-3 py-2 text-sm"
+            onChange={(e) => {
+              const index = e.target.selectedIndex;
+              if (index > 0) {
+                const suggestion = suggestions[index - 1]; // Subtract 1 for the "Select..." option
+                console.log('Selected suggestion:', suggestion);
+                handleSuggestionClick(suggestion);
+              }
+              setShowSuggestions(false);
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <option value="">Select a location...</option>
             {suggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log('Button clicked, calling handleSuggestionClick');
-                  handleSuggestionClick(suggestion);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0 cursor-pointer"
-              >
-                <div className="font-medium text-gray-800">{suggestion.display_name}</div>
-              </button>
+              <option key={index} value={index}>
+                {suggestion.display_name}
+              </option>
             ))}
-          </div>
+          </select>
         )}
         {showSuggestions && suggestions.length === 0 && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-500">
