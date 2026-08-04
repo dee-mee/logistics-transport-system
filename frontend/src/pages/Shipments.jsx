@@ -550,21 +550,25 @@ export default function Shipments() {
   function load() {
     setLoading(true);
     
-    // Build query parameters based on user role
+    // Build query parameters based on user role and filter
     let queryParams = [];
+    
+    // Include delivered shipments when filtering by status or when explicitly requested
     if (statusFilter) {
       queryParams.push(`status=${statusFilter}`);
+      queryParams.push('include_delivered=true');
+    } else {
+      // Default view: only show non-delivered shipments (active view)
+      queryParams.push('exclude_delivered=true');
     }
     
-    const q = queryParams.length > 0 ? `?${queryParams.join('&')}` : "";
+    const q = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
     
     client.get(`/orders/shipments/${q}`)
       .then((res) => {
-        // Backend now scopes shipments per-user automatically and filters out delivered
+        // Backend now scopes shipments per-user automatically
         const shipments = res.data.results ?? res.data;
-        // Additional client-side filter to ensure delivered shipments are not shown
-        const activeShipments = shipments.filter(s => s.status !== 'delivered');
-        setShipments(activeShipments);
+        setShipments(shipments);
       })
       .finally(() => setLoading(false));
   }

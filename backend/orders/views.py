@@ -63,8 +63,14 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         
         # Drivers should see all their shipments including delivered ones
         # Admins/Dispatchers should see all shipments including delivered for reporting
-        # Filter out delivered shipments from the default list for "active" view
-        if not self.request.query_params.get('include_delivered'):
+        # Filter logic:
+        # - exclude_delivered=true: hide delivered shipments
+        # - include_delivered=true: show delivered shipments
+        # - Neither: default to hiding delivered shipments (active view)
+        if self.request.query_params.get('exclude_delivered'):
+            queryset = queryset.exclude(status=Shipment.Status.DELIVERED)
+        elif not self.request.query_params.get('include_delivered'):
+            # Default: hide delivered shipments
             queryset = queryset.exclude(status=Shipment.Status.DELIVERED)
 
         return queryset
