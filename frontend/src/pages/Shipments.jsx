@@ -161,7 +161,9 @@ function CreateShipmentModal({ onClose, onCreated }) {
               value={form.pickup_address}
               onChange={(value) => {
                 console.log('Pickup address changed:', value);
+                console.log('Current form state before update:', form);
                 setForm({ ...form, pickup_address: value });
+                console.log('Form state after pickup address update');
               }}
               onCoordinatesChange={(coords) => {
                 console.log('Pickup coordinates changed:', coords);
@@ -175,7 +177,9 @@ function CreateShipmentModal({ onClose, onCreated }) {
               value={form.dropoff_address}
               onChange={(value) => {
                 console.log('Dropoff address changed:', value);
+                console.log('Current form state before update:', form);
                 setForm({ ...form, dropoff_address: value });
+                console.log('Form state after dropoff address update');
               }}
               onCoordinatesChange={(coords) => {
                 console.log('Dropoff coordinates changed:', coords);

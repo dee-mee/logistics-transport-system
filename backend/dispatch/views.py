@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions as rest_permissions
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Q
 from .models import Trip, TripStop
 from .serializers import TripSerializer, TripStopSerializer
 from permissions.permissions import HasModuleAccess
@@ -14,7 +15,7 @@ class TripViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Trip.objects.filter(
-            organization=self.request.user.current_organization
+            Q(organization__isnull=True) | Q(organization=self.request.user.current_organization)
         ).select_related("vehicle", "driver__user").prefetch_related("stops").order_by("-created_at")
         
         # Drivers can only see their own trips
@@ -46,7 +47,7 @@ class TripStopViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return TripStop.objects.filter(
-            trip__organization=self.request.user.current_organization
+            Q(trip__organization__isnull=True) | Q(trip__organization=self.request.user.current_organization)
         ).select_related("trip", "shipment").all()
     
     filter_backends = [DjangoFilterBackend]

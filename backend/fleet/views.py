@@ -22,7 +22,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return Vehicle.objects.filter(
-            organization=self.request.user.current_organization
+            Q(organization__isnull=True) | Q(organization=self.request.user.current_organization)
         ).select_related('organization').order_by("-created_at")
     
     def get_serializer_class(self):
@@ -189,7 +189,7 @@ class DriverViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Driver.objects.filter(
-            organization=self.request.user.current_organization
+            Q(organization__isnull=True) | Q(organization=self.request.user.current_organization)
         ).select_related("user", "assigned_vehicle").order_by("-created_at")
         
         # Drivers can only see their own record

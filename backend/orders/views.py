@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions as rest_permissions, filters, s
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Q
 from .models import Customer, Shipment
 from .serializers import CustomerSerializer, ShipmentSerializer
 from permissions.permissions import HasModuleAccess
@@ -15,8 +16,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     
     def get_queryset(self):
+        # Show customers from current organization OR customers without an organization (legacy data)
         return Customer.objects.filter(
-            organization=self.request.user.current_organization
+            Q(organization__isnull=True) | Q(organization=self.request.user.current_organization)
         ).order_by("-created_at")
     
     def perform_create(self, serializer):
@@ -41,8 +43,11 @@ class ShipmentViewSet(viewsets.ModelViewSet):
     search_fields = ["tracking_code", "pickup_address", "dropoff_address"]
     
     def get_queryset(self):
+        # Show shipments from current organization OR shipments without an organization (legacy data)
         queryset = (
-            Shipment.objects.filter(organization=self.request.user.current_organization)
+            Shipment.objects.filter(
+                Q(organization__isnull=True) | Q(organization=self.request.user.current_organization)
+            )
             .select_related("customer", "driver", "driver__user", "vehicle")
             .order_by("-created_at")
         )

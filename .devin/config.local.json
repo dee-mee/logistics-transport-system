@@ -25,7 +25,11 @@
       "Exec(pkill)",
       "Exec(sleep)",
       "Exec(/home/deemee/projects/logistics-transport-system/venv/bin/python)",
-      "Exec(/home/deemee/projects/logistics/transport-system/venv/bin/python)"
+      "Exec(/home/deemee/projects/logistics/transport-system/venv/bin/python)",
+      "Exec(git fsck)",
+      "Exec(git update-ref)",
+      "Exec(rm)",
+      "Exec(kill)"
     ]
   }
 }

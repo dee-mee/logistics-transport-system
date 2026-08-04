@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -33,11 +33,26 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
   const [mapZoom, setMapZoom] = useState(2);
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
 
   // Update local state when prop changes
   useEffect(() => {
     setQuery(value || '');
   }, [value]);
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    (searchQuery) => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      
+      searchTimeoutRef.current = setTimeout(() => {
+        searchLocations(searchQuery);
+      }, 500); // 500ms delay
+    },
+    []
+  );
 
   // Geocode search using Nominatim (OpenStreetMap)
   const searchLocations = async (searchQuery) => {
@@ -51,9 +66,7 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`
       );
-      const clonedResponse = response.clone();
-      const data = await clonedResponse.json();
-      console.log('Search results for:', searchQuery, data);
+      const data = await response.json();
       setSuggestions(data);
     } catch (error) {
       console.error('Geocoding error:', error);
@@ -86,7 +99,7 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     const newValue = e.target.value;
     setQuery(newValue);
     setShowSuggestions(true);
-    searchLocations(newValue);
+    debouncedSearch(newValue);
     // Update parent form state immediately when typing
     onChange(newValue);
   };
@@ -106,11 +119,12 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     setShowSuggestions(false);
   };
 
-  const handleSuggestionClick = async (suggestion) => {
-    console.log('=== Suggestion clicked ===');
-    console.log('Suggestion data:', suggestion);
+  const handleSuggestionClick = async (suggestion, event) => {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
     const address = suggestion.display_name;
-    console.log('Full address from suggestion:', address);
     setQuery(address);
     setShowSuggestions(false);
     const lat = parseFloat(suggestion.lat);
@@ -125,15 +139,11 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     });
     setMapCenter([roundedLat, roundedLng]);
     setMapZoom(13);
-    console.log('About to call onChange with address:', address);
     onChange(address);
-    console.log('onChange call completed');
     if (onCoordinatesChange) {
-      console.log('Calling onCoordinatesChange with:', { lat: roundedLat, lng: roundedLng });
       onCoordinatesChange({ lat: roundedLat, lng: roundedLng });
     }
     setShowMap(true);
-    console.log('=== Suggestion click completed ===');
   };
 
   const handleSearchAddress = async () => {
@@ -207,7 +217,6 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
       const isOutsideSuggestions = suggestionsRef.current && !suggestionsRef.current.contains(event.target);
       
       if (isOutsideInput && isOutsideSuggestions) {
-        console.log('Click outside detected, closing suggestions');
         setShowSuggestions(false);
       }
     };
@@ -215,6 +224,10 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      // Cleanup timeout on unmount
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -242,27 +255,27 @@ function LocationPicker({ value, onChange, label, onCoordinatesChange }) {
         </button>
 
         {showSuggestions && suggestions.length > 0 && (
-          <select 
+          <div 
             ref={suggestionsRef}
-            className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto px-3 py-2 text-sm"
-            onChange={(e) => {
-              const index = e.target.selectedIndex;
-              if (index > 0) {
-                const suggestion = suggestions[index - 1]; // Subtract 1 for the "Select..." option
-                console.log('Selected suggestion:', suggestion);
-                handleSuggestionClick(suggestion);
-              }
-              setShowSuggestions(false);
-            }}
-            onClick={(e) => e.stopPropagation()}
+            className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
           >
-            <option value="">Select a location...</option>
             {suggestions.map((suggestion, index) => (
-              <option key={index} value={index}>
-                {suggestion.display_name}
-              </option>
+              <div
+                key={index}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSuggestionClick(suggestion);
+                }}
+                className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+              >
+                <div className="font-medium text-gray-900">{suggestion.display_name}</div>
+                {suggestion.address && (
+                  <div className="text-xs text-gray-500">{suggestion.address}</div>
+                )}
+              </div>
             ))}
-          </select>
+          </div>
         )}
         {showSuggestions && suggestions.length === 0 && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-500">
