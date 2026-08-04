@@ -122,17 +122,17 @@ export default function Dashboard() {
         console.log('Active shipments:', activeShipments);
         console.log('All shipments for Recent Activity:', shipments);
         
-        // Calculate stats from real data
-        const totalShipments = allShipments.length; // All shipments (including delivered)
+        // Calculate stats from real data (use the shipments variable directly, not state)
+        const totalShipments = shipments.length; // All shipments (including delivered)
         const activeShipmentsCount = activeShipments.length; // Only non-delivered
         const inTransitShipments = activeShipments.filter(s => s.status === 'in_transit').length;
         
         // Calculate revenue from all shipments
-        const totalRevenue = allShipments.reduce((sum, s) => sum + (s.price || 0), 0);
+        const totalRevenue = shipments.reduce((sum, s) => sum + (s.price || 0), 0);
         
         // Calculate total distance covered using haversine formula
         let totalDistanceKm = 0;
-        allShipments.forEach(shipment => {
+        shipments.forEach(shipment => {
           if (shipment.pickup_lat && shipment.pickup_lng && 
               shipment.dropoff_lat && shipment.dropoff_lng) {
             const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
