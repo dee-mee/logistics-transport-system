@@ -18,7 +18,7 @@ class Trip(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     reference = models.CharField(max_length=20, unique=True, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="trips", null=True, blank=True)
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="trips")
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="trips", null=True, blank=True)
     driver = models.ForeignKey(Driver, on_delete=models.PROTECT, related_name="trips")
     shipments = models.ManyToManyField(Shipment, related_name="trips", through="TripStop")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)

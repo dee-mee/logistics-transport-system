@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import ActiveOrderCard from '../components/ActiveOrderCard';
 import MapPanel from '../components/MapPanel';
@@ -25,12 +26,57 @@ export default function Dashboard() {
   // Active orders data (real shipments)
   const [activeOrders, setActiveOrders] = useState([]);
   
+  // All shipments for Recent Activity (including delivered)
+  const [allShipments, setAllShipments] = useState([]);
+  
   // Map and trip details
   const [waypoints, setWaypoints] = useState(null);
   const [tripDetails, setTripDetails] = useState(null);
   
   // Transactions data
   const [transactions, setTransactions] = useState([]);
+  
+  // Location reporting state
+  const [reportingLocation, setReportingLocation] = useState(false);
+
+  // Function for driver to report their current location
+  const reportCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setReportingLocation(true);
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      
+      // Round to 6 decimal places to match backend validation
+      const roundedLat = Math.round(latitude * 1000000) / 1000000;
+      const roundedLng = Math.round(longitude * 1000000) / 1000000;
+
+      // Send location to backend using the VehicleLocationPing endpoint
+      await client.post('/tracking/location-pings/report_location/', {
+        lat: roundedLat,
+        lng: roundedLng,
+        address: 'Driver reported location'
+      });
+
+      alert('Location reported successfully!');
+    } catch (error) {
+      console.error('Error reporting location:', error);
+      alert('Failed to report location. Please ensure location services are enabled.');
+    } finally {
+      setReportingLocation(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -64,13 +110,24 @@ export default function Dashboard() {
       
       if (shipmentsRes.data?.results) {
         const shipments = shipmentsRes.data.results;
+        console.log('All shipments data:', shipments);
         // Filter out delivered shipments from active orders
         const activeShipments = shipments.filter(s => s.status !== 'delivered');
         setActiveOrders(activeShipments);
         
+        // For Recent Activity, use all shipments (including delivered)
+        // This way drivers can see their completed work
+        setAllShipments(shipments);
+        
+        console.log('Active shipments:', activeShipments);
+        console.log('All shipments for Recent Activity:', shipments);
+        
         // Calculate stats from real data
         const totalShipments = activeShipments.length;
         const inTransitShipments = activeShipments.filter(s => s.status === 'in_transit').length;
+        
+        console.log('Active shipments count:', totalShipments);
+        console.log('In transit shipments count:', inTransitShipments);
         
         setStats({
           totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
@@ -80,9 +137,14 @@ export default function Dashboard() {
         });
         
         // Select first shipment if none selected, prefer in_transit shipments
-        if (!selectedOrderId && activeShipments.length > 0) {
-          const inTransitShipment = activeShipments.find(s => s.status === 'in_transit');
-          setSelectedOrderId(inTransitShipment ? inTransitShipment.id : activeShipments[0].id);
+        if (!selectedOrderId) {
+          if (activeShipments.length > 0) {
+            const inTransitShipment = activeShipments.find(s => s.status === 'in_transit');
+            setSelectedOrderId(inTransitShipment ? inTransitShipment.id : activeShipments[0].id);
+          } else {
+            // No active shipments - set selectedOrderId to null to show default map
+            setSelectedOrderId(null);
+          }
         }
       }
       
@@ -254,9 +316,21 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-1">Dashboard</h1>
-        <p className="text-sm text-gray-500">See all your shipment overview here.</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Dashboard</h1>
+          <p className="text-sm text-gray-500">See all your shipment overview here.</p>
+        </div>
+        {user?.role === 'driver' && (
+          <button
+            onClick={reportCurrentLocation}
+            disabled={reportingLocation}
+            className="flex items-center gap-2 bg-[#1e3a8a] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1e40af] transition-colors disabled:opacity-50"
+          >
+            <MapPin size={16} />
+            {reportingLocation ? 'Reporting...' : 'Report Current Location'}
+          </button>
+        )}
       </div>
       
       {/* Stat Cards Row */}
@@ -290,20 +364,33 @@ export default function Dashboard() {
       {/* Active Orders Section */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Active Shipments</h2>
-        <Link to="/shipments" className="text-sm text-[#1e3a8a] hover:underline">
-          View all
-        </Link>
+        {user?.role === 'driver' ? (
+          <Link to="/trips" className="text-sm text-[#1e3a8a] hover:underline">
+            View all trips
+          </Link>
+        ) : (
+          <Link to="/shipments" className="text-sm text-[#1e3a8a] hover:underline">
+            View all
+          </Link>
+        )}
       </div>
       
       <div className="grid grid-cols-3 gap-6 mb-8">
-        {activeOrders.map((order) => (
-          <ActiveOrderCard
-            key={order.id}
-            order={order}
-            isSelected={selectedOrderId === order.id}
-            onSelect={setSelectedOrderId}
-          />
-        ))}
+        {activeOrders.length === 0 ? (
+          <div className="col-span-3 bg-white rounded-xl shadow-card p-8 text-center text-gray-500">
+            <p className="mb-2">No active shipments</p>
+            <p className="text-sm">You have no active trips at the moment</p>
+          </div>
+        ) : (
+          activeOrders.map((order) => (
+            <ActiveOrderCard
+              key={order.id}
+              order={order}
+              isSelected={selectedOrderId === order.id}
+              onSelect={setSelectedOrderId}
+            />
+          ))
+        )}
       </div>
       
       {/* Map + Trip Detail Panel */}
@@ -314,7 +401,10 @@ export default function Dashboard() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
             </div>
           ) : (
-            <MapPanel waypoints={waypoints} selectedOrder={activeOrders.find(o => o.id === selectedOrderId)} />
+            <MapPanel 
+              waypoints={waypoints} 
+              selectedOrder={activeOrders.length > 0 ? allShipments.find(o => o.id === selectedOrderId) : null}
+            />
           )}
         </div>
         <div className="col-span-2 bg-white rounded-xl shadow-card">
@@ -322,8 +412,15 @@ export default function Dashboard() {
             <div className="h-[400px] flex items-center justify-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
             </div>
-          ) : (
+          ) : activeOrders.length > 0 ? (
             <TripDetailPanel tripDetails={tripDetails} />
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <p className="mb-2">No active trips</p>
+                <p className="text-sm">Waiting for new assignment</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -331,12 +428,18 @@ export default function Dashboard() {
       {/* Transactions Table */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-        <Link to="/shipments" className="text-sm text-[#1e3a8a] hover:underline">
-          View all
-        </Link>
+        {user?.role === 'driver' ? (
+          <Link to="/trips" className="text-sm text-[#1e3a8a] hover:underline">
+            View all trips
+          </Link>
+        ) : (
+          <Link to="/shipments" className="text-sm text-[#1e3a8a] hover:underline">
+            View all
+          </Link>
+        )}
       </div>
       
-      <TransactionsTable transactions={activeOrders} />
+      <TransactionsTable transactions={allShipments} />
     </>
   );
 }

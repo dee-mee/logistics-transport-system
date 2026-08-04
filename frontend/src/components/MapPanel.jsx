@@ -45,10 +45,10 @@ function MapPanel({ waypoints, selectedOrder }) {
   if (pickupCoords) allPoints.push(pickupCoords);
   if (dropoffCoords) allPoints.push(dropoffCoords);
   
-  // Default center if no waypoints or coordinates
+  // Default center if no waypoints or coordinates - Nairobi coordinates
   const mapCenter = allPoints.length > 0 
     ? allPoints[0] 
-    : [40.7128, -74.0060]; // Default to NYC
+    : [-1.2921, 36.8219]; // Default to Nairobi
   
   // Custom icons for pickup/dropoff with shipment colors
   const pickupIcon = new L.Icon({
@@ -73,66 +73,65 @@ function MapPanel({ waypoints, selectedOrder }) {
   
   return (
     <div className="h-full min-h-[400px] rounded-xl overflow-hidden">
-      {!selectedOrder ? (
-        <div className="h-full flex items-center justify-center text-gray-500">
-          Select a shipment to view route
-        </div>
-      ) : (
-        <MapContainer 
-          center={mapCenter} 
-          zoom={12} 
-          style={{ height: '100%', width: '100%' }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          
-          {/* Draw route polyline with shipment-specific color */}
-          {routePositions.length > 1 && (
-            <Polyline 
-              positions={routePositions} 
-              color={shipmentColor.primary} 
-              weight={4}
-              opacity={0.8}
-            />
-          )}
-          
-          {/* Draw pickup marker with shipment-specific color */}
-          {pickupCoords && (
-            <Marker position={pickupCoords} icon={pickupIcon}>
-              <Popup>
-                <div className="text-sm">
-                  <div className="font-medium" style={{ color: shipmentColor.primary }}>
-                    🚩 Pickup Location
+      <MapContainer 
+        center={mapCenter} 
+        zoom={12} 
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        {/* Only show route/markers if there's a selected order */}
+        {selectedOrder && (
+          <>
+            {/* Draw route polyline with shipment-specific color */}
+            {routePositions.length > 1 && (
+              <Polyline 
+                positions={routePositions} 
+                color={shipmentColor.primary} 
+                weight={4}
+                opacity={0.8}
+              />
+            )}
+            
+            {/* Draw pickup marker with shipment-specific color */}
+            {pickupCoords && (
+              <Marker position={pickupCoords} icon={pickupIcon}>
+                <Popup>
+                  <div className="text-sm">
+                    <div className="font-medium" style={{ color: shipmentColor.primary }}>
+                      🚩 Pickup Location
+                    </div>
+                    <div className="text-gray-500">{selectedOrder?.pickup_address || 'Unknown location'}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {selectedOrder?.tracking_code}
+                    </div>
                   </div>
-                  <div className="text-gray-500">{selectedOrder?.pickup_address || 'Unknown location'}</div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {selectedOrder?.tracking_code}
+                </Popup>
+              </Marker>
+            )}
+            
+            {/* Draw dropoff marker with shipment-specific color */}
+            {dropoffCoords && (
+              <Marker position={dropoffCoords} icon={dropoffIcon}>
+                <Popup>
+                  <div className="text-sm">
+                    <div className="font-medium" style={{ color: shipmentColor.primary }}>
+                      🏁 Dropoff Location
+                    </div>
+                    <div className="text-gray-500">{selectedOrder?.dropoff_address || 'Unknown location'}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {selectedOrder?.tracking_code}
+                    </div>
                   </div>
-                </div>
-              </Popup>
-            </Marker>
-          )}
-          
-          {/* Draw dropoff marker with shipment-specific color */}
-          {dropoffCoords && (
-            <Marker position={dropoffCoords} icon={dropoffIcon}>
-              <Popup>
-                <div className="text-sm">
-                  <div className="font-medium" style={{ color: shipmentColor.primary }}>
-                    🏁 Dropoff Location
-                  </div>
-                  <div className="text-gray-500">{selectedOrder?.dropoff_address || 'Unknown location'}</div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {selectedOrder?.tracking_code}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          )}
-        </MapContainer>
-      )}
+                </Popup>
+              </Marker>
+            )}
+          </>
+        )}
+      </MapContainer>
     </div>
   );
 }

@@ -223,6 +223,46 @@ class DriverViewSet(viewsets.ModelViewSet):
         if driver.user and driver.user.role != 'driver':
             driver.user.role = 'driver'
             driver.user.save()
+        
+        # Ensure the user is added to the organization with DRIVER role
+        if driver.user:
+            from organizations.models import OrganizationUser
+            from permissions.models import RolePermission
+            
+            org = self.request.user.current_organization
+            
+            # Add or update organization membership
+            org_user, created = OrganizationUser.objects.get_or_create(
+                organization=org,
+                user=driver.user,
+                defaults={'role': OrganizationUser.Role.DRIVER}
+            )
+            
+            if not created and org_user.role != OrganizationUser.Role.DRIVER:
+                org_user.role = OrganizationUser.Role.DRIVER
+                org_user.save()
+            
+            # Set user's current_organization to match driver's organization
+            if driver.user.current_organization != org:
+                driver.user.current_organization = org
+                driver.user.save()
+            
+            # Create necessary role permissions for driver
+            driver_permissions = [
+                ('orders', RolePermission.AccessLevel.VIEW.value),
+                ('tracking', RolePermission.AccessLevel.VIEW.value),
+                ('dashboard', RolePermission.AccessLevel.VIEW.value),
+                ('dispatch', RolePermission.AccessLevel.VIEW.value),
+                ('vehicles', RolePermission.AccessLevel.VIEW.value),
+            ]
+            
+            for module_name, access_level in driver_permissions:
+                RolePermission.objects.get_or_create(
+                    organization=org,
+                    role=OrganizationUser.Role.DRIVER,
+                    module=module_name,
+                    defaults={'access_level': access_level}
+                )
     
     def perform_update(self, serializer):
         driver = serializer.save()

@@ -61,9 +61,11 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         if driver_profile is not None:
             queryset = queryset.filter(driver=driver_profile)
         
-        # Filter out delivered shipments from the default list
+        # Drivers should see all their shipments including delivered ones
+        # Filter out delivered shipments from the default list for others
         # Delivered shipments can still be accessed by ID or with specific filters
-        if not self.request.query_params.get('include_delivered'):
+        is_driver = driver_profile is not None
+        if not is_driver and not self.request.query_params.get('include_delivered'):
             queryset = queryset.exclude(status=Shipment.Status.DELIVERED)
 
         return queryset
@@ -74,15 +76,15 @@ class ShipmentViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         shipment = serializer.save()
         
-        # If shipment is marked as delivered, free the driver
+        # If shipment is marked as delivered, free the driver and vehicle
         if shipment.status == Shipment.Status.DELIVERED and shipment.driver:
-            from fleet.models import Driver
+            from fleet.models import Driver, Vehicle
             driver = shipment.driver
             
             # Check if driver has any other active shipments
             active_shipments = Shipment.objects.filter(
                 driver=driver,
-                organization=request.user.current_organization,
+                organization=self.request.user.current_organization,
                 status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
             ).exclude(id=shipment.id)
             
@@ -93,6 +95,24 @@ class ShipmentViewSet(viewsets.ModelViewSet):
                 print(f"Driver {driver.user.get_full_name()} freed and set to available")
             else:
                 print(f"Driver {driver.user.get_full_name()} still has active shipments, keeping current status")
+            
+            # Free the vehicle if assigned
+            if shipment.vehicle:
+                vehicle = shipment.vehicle
+                # Check if vehicle has any other active shipments
+                active_vehicle_shipments = Shipment.objects.filter(
+                    vehicle=vehicle,
+                    organization=self.request.user.current_organization,
+                    status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+                ).exclude(id=shipment.id)
+                
+                # If no other active shipments, set vehicle status to available
+                if not active_vehicle_shipments.exists():
+                    vehicle.status = 'available'
+                    vehicle.save()
+                    print(f"Vehicle {vehicle.plate_number} freed and set to available")
+                else:
+                    print(f"Vehicle {vehicle.plate_number} still has active shipments, keeping current status")
     
     @action(detail=True, methods=['post'])
     def assign_driver(self, request, pk=None):
@@ -193,6 +213,55 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             shipment.save()
             
             print(f"Status updated to IN_TRANSIT successfully")
+            
+            # Create a Trip record for this shipment
+            from dispatch.models import Trip, TripStop
+            try:
+                trip = Trip.objects.create(
+                    organization=request.user.current_organization,
+                    driver=shipment.driver,
+                    vehicle=shipment.vehicle,  # Can be null now
+                    status=Trip.Status.IN_PROGRESS,  # Already in progress since tracking started
+                    notes=f'Trip for shipment {shipment.tracking_code}'
+                )
+                print(f"Trip created: {trip.id}")
+                
+                # Mark driver as busy
+                if shipment.driver:
+                    shipment.driver.status = 'busy'
+                    shipment.driver.save()
+                    print(f"Driver {shipment.driver.user.get_full_name()} marked as busy")
+                
+                # Mark vehicle as busy if assigned
+                if shipment.vehicle:
+                    shipment.vehicle.status = 'in_use'
+                    shipment.vehicle.save()
+                    print(f"Vehicle {shipment.vehicle.plate_number} marked as in_use")
+                
+                # Create pickup stop
+                TripStop.objects.create(
+                    trip=trip,
+                    shipment=shipment,
+                    stop_type='pickup',
+                    sequence=1
+                )
+                print(f"Pickup stop created for trip {trip.id}")
+                
+                # Create dropoff stop
+                TripStop.objects.create(
+                    trip=trip,
+                    shipment=shipment,
+                    stop_type='dropoff',
+                    sequence=2
+                )
+                print(f"Dropoff stop created for trip {trip.id}")
+                    
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print(f"Error creating trip: {e}")
+                # Continue even if trip creation fails
+                # The shipment tracking is more important
             
             # Create status event with coordinates for tracking
             from tracking.models import ShipmentStatusEvent

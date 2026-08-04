@@ -17,15 +17,6 @@ if (typeof window !== 'undefined') {
   });
 }
 
-function MapClickHandler({ onMapClick }) {
-  useMapEvents({
-    click: (e) => {
-      onMapClick(e.latlng);
-    },
-  });
-  return null;
-}
-
 function DriverTracking({ shipment }) {
   const { user } = useAuth();
   const [driverLocation, setDriverLocation] = useState(null);
@@ -36,6 +27,10 @@ function DriverTracking({ shipment }) {
   // Get shipment-specific colors
   const shipmentColor = getShipmentColor(shipment?.id);
 
+  // Check if current user is the assigned driver
+  const isAssignedDriver = user?.id === shipment?.driver_details?.user?.id || 
+                          user?.username === shipment?.driver_name;
+  
   // Check if current user is a driver (any driver, not just assigned to this shipment)
   const isDriver = user?.role === 'driver';
 
@@ -78,53 +73,52 @@ function DriverTracking({ shipment }) {
     }
   };
 
-  useEffect(() => {
-    if (!shipment.driver) return;
+  const fetchDriverLocation = async () => {
 
     // Clear previous location data when shipment changes
     setDriverLocation(null);
     setLocationHistory([]);
     setLoading(true);
 
-    const fetchDriverLocation = async () => {
-      try {
-        // Fetch tracking events for this shipment
-        const eventsRes = await client.get(`/tracking/status-events/?shipment=${shipment.id}`);
+  const fetchDriverLocation = async () => {
+    try {
+      // Fetch tracking events for this shipment
+      const eventsRes = await client.get(`/tracking/status-events/?shipment=${shipment.id}`);
+      
+      console.log('DriverTracking events response for shipment:', shipment.id, eventsRes.data);
+      
+      if (eventsRes.data && eventsRes.data.results) {
+        const events = eventsRes.data.results;
         
-        console.log('DriverTracking events response for shipment:', shipment.id, eventsRes.data);
+        console.log('DriverTracking events:', events);
+        console.log('Number of events:', events.length);
         
-        if (eventsRes.data && eventsRes.data.results) {
-          const events = eventsRes.data.results;
-          
-          console.log('DriverTracking events:', events);
-          console.log('Number of events:', events.length);
-          
-          // Extract location history from events, sorted by timestamp
-          const sortedEvents = events
-            .filter(event => event.lat && event.lng)
-            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-          
-          console.log('Sorted events with coordinates:', sortedEvents);
-          
-          // Remove duplicate coordinates to avoid zigzag
-          const uniqueRoutePoints = [];
-          const seen = new Set();
-          
-          sortedEvents.forEach(event => {
-            const key = `${event.lat}-${event.lng}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              uniqueRoutePoints.push([
-                parseFloat(event.lat),
-                parseFloat(event.lng)
-              ]);
-            }
-          });
-          
-          console.log('DriverTracking unique sorted routePoints:', uniqueRoutePoints);
-          console.log('Number of unique route points:', uniqueRoutePoints.length);
-          
-          setLocationHistory(uniqueRoutePoints);
+        // Extract location history from events, sorted by timestamp
+        const sortedEvents = events
+          .filter(event => event.lat && event.lng)
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        
+        console.log('Sorted events with coordinates:', sortedEvents);
+        
+        // Remove duplicate coordinates to avoid zigzag
+        const uniqueRoutePoints = [];
+        const seen = new Set();
+        
+        sortedEvents.forEach(event => {
+          const key = `${event.lat}-${event.lng}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueRoutePoints.push([
+              parseFloat(event.lat),
+              parseFloat(event.lng)
+            ]);
+          }
+        });
+        
+        console.log('DriverTracking unique sorted routePoints:', uniqueRoutePoints);
+        console.log('Number of unique route points:', uniqueRoutePoints.length);
+        
+        setLocationHistory(uniqueRoutePoints);
           
           // Set current driver location to most recent event
           if (uniqueRoutePoints.length > 0) {

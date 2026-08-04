@@ -76,6 +76,37 @@ class UserSerializer(serializers.ModelSerializer):
                 if not user.current_organization:
                     user.current_organization = organization
                     user.save()
+                
+                # If role is driver, create necessary permissions
+                if role == OrganizationUser.Role.DRIVER:
+                    from permissions.models import RolePermission
+                    driver_permissions = [
+                        ('orders', RolePermission.AccessLevel.VIEW.value),
+                        ('tracking', RolePermission.AccessLevel.VIEW.value),
+                        ('dashboard', RolePermission.AccessLevel.VIEW.value),
+                        ('dispatch', RolePermission.AccessLevel.VIEW.value),
+                        ('vehicles', RolePermission.AccessLevel.VIEW.value),
+                    ]
+                    
+                    for module_name, access_level in driver_permissions:
+                        RolePermission.objects.get_or_create(
+                            organization=organization,
+                            role=OrganizationUser.Role.DRIVER,
+                            module=module_name,
+                            defaults={'access_level': access_level}
+                        )
+                    
+                    # Create driver profile if it doesn't exist
+                    from fleet.models import Driver
+                    Driver.objects.get_or_create(
+                        user=user,
+                        defaults={
+                            'organization': organization,
+                            'license_number': f'TEMP-{user.username.upper()}',
+                            'status': 'available'
+                        }
+                    )
+                    
             except Organization.DoesNotExist:
                 pass
         
@@ -121,6 +152,37 @@ class UserSerializer(serializers.ModelSerializer):
                 # Set as current organization
                 instance.current_organization = organization
                 instance.save()
+                
+                # If role is driver, create necessary permissions and driver profile
+                if role == OrganizationUser.Role.DRIVER:
+                    from permissions.models import RolePermission
+                    driver_permissions = [
+                        ('orders', RolePermission.AccessLevel.VIEW.value),
+                        ('tracking', RolePermission.AccessLevel.VIEW.value),
+                        ('dashboard', RolePermission.AccessLevel.VIEW.value),
+                        ('dispatch', RolePermission.AccessLevel.VIEW.value),
+                        ('vehicles', RolePermission.AccessLevel.VIEW.value),
+                    ]
+                    
+                    for module_name, access_level in driver_permissions:
+                        RolePermission.objects.get_or_create(
+                            organization=organization,
+                            role=OrganizationUser.Role.DRIVER,
+                            module=module_name,
+                            defaults={'access_level': access_level}
+                        )
+                    
+                    # Create driver profile if it doesn't exist
+                    from fleet.models import Driver
+                    Driver.objects.get_or_create(
+                        user=instance,
+                        defaults={
+                            'organization': organization,
+                            'license_number': f'TEMP-{instance.username.upper()}',
+                            'status': 'available'
+                        }
+                    )
+                    
             except Organization.DoesNotExist:
                 pass
         

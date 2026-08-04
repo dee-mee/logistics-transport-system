@@ -36,7 +36,7 @@ function NotificationDropdown() {
 
   async function markAllAsRead() {
     try {
-      await client.post('/notifications/mark-all-read/');
+      await client.post('/notifications/mark_all_read/');
       loadNotifications();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);

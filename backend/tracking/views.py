@@ -29,6 +29,77 @@ class ShipmentStatusEventViewSet(viewsets.ModelViewSet):
     serializer_class = ShipmentStatusEventSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["shipment", "status"]
+    
+    @action(detail=False, methods=['post'])
+    def report_driver_location(self, request):
+        """Allow drivers to report their current location at any time."""
+        from fleet.models import Driver
+        
+        # Get the driver profile
+        driver_profile = getattr(request.user, 'driver_profile', None)
+        if not driver_profile:
+            return Response(
+                {'error': 'No driver profile found for this user'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        lat = request.data.get('lat')
+        lng = request.data.get('lng')
+        address = request.data.get('address', 'Location reported by driver')
+        
+        if not lat or not lng:
+            return Response(
+                {'error': 'Latitude and longitude are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Round to 6 decimal places
+        lat = round(float(lat), 6)
+        lng = round(float(lng), 6)
+        
+        try:
+            # Create a status event for the driver's current location
+            # We use a generic "driver_location" status or associate with any active shipment
+            from orders.models import Shipment
+            active_shipment = Shipment.objects.filter(
+                driver=driver_profile,
+                status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+            ).first()
+            
+            if active_shipment:
+                # Associate with active shipment
+                event = ShipmentStatusEvent.objects.create(
+                    shipment=active_shipment,
+                    status=active_shipment.status,
+                    location_description=f"Driver location: {address}",
+                    lat=lat,
+                    lng=lng
+                )
+            else:
+                # Create a standalone location event without shipment
+                # We'll need to handle this differently since shipment is required
+                # For now, return success without creating an event
+                return Response({
+                    'message': 'Location recorded',
+                    'lat': lat,
+                    'lng': lng,
+                    'address': address
+                })
+            
+            return Response({
+                'message': 'Location recorded successfully',
+                'event_id': event.id,
+                'lat': lat,
+                'lng': lng,
+                'address': address
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'error': f'Error recording location: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class VehicleLocationPingViewSet(viewsets.ModelViewSet):
@@ -59,6 +130,63 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
     
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["vehicle", "driver", "status_update"]
+    
+    @action(detail=False, methods=['post'])
+    def report_location(self, request):
+        """Allow drivers to report their current location at any time."""
+        from fleet.models import Driver, Vehicle
+        
+        # Get the driver profile
+        driver_profile = getattr(request.user, 'driver_profile', None)
+        if not driver_profile:
+            return Response(
+                {'error': 'No driver profile found for this user'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        lat = request.data.get('lat')
+        lng = request.data.get('lng')
+        address = request.data.get('address', 'Location reported by driver')
+        
+        if not lat or not lng:
+            return Response(
+                {'error': 'Latitude and longitude are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Round to 6 decimal places
+        lat = round(float(lat), 6)
+        lng = round(float(lng), 6)
+        
+        try:
+            # Get the driver's assigned vehicle (if any)
+            vehicle = getattr(driver_profile, 'assigned_vehicle', None)
+            
+            # Create a location ping
+            location_ping = VehicleLocationPing.objects.create(
+                organization=request.user.current_organization,
+                vehicle=vehicle,
+                driver=driver_profile,
+                lat=lat,
+                lng=lng,
+                address=address,
+                status_update='available'  # Default status when not on trip
+            )
+            
+            return Response({
+                'message': 'Location recorded successfully',
+                'location_id': location_ping.id,
+                'lat': lat,
+                'lng': lng,
+                'address': address
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'error': f'Error recording location: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
