@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from django_rest_passwordreset.views import ResetPasswordConfirm
 from axes.decorators import axes_dispatch
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 from .serializers import UserSerializer, RegisterSerializer, CustomTokenObtainPairSerializer
 from .services import AuditLogService
 from permissions.permissions import HasModuleAccess
@@ -52,10 +53,12 @@ class LoginView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         try:
             response = super().post(request, *args, **kwargs)
-            # Log successful login
+            # Log successful login and update last_login
             username = request.data.get('username')
             try:
                 user = User.objects.get(username=username)
+                user.last_login = timezone.now()
+                user.save(update_fields=['last_login'])
                 AuditLogService.log_login(user, request, status='success')
             except User.DoesNotExist:
                 pass
@@ -146,18 +149,23 @@ def lockout_response(request, credentials, *args, **kwargs):
 
 class UserViewSet(viewsets.ModelViewSet):
     module = PermissionGroup.Module.SETTINGS
-    permission_classes = [permissions.AllowAny]  # Changed for testing
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserSerializer
 
     def get_serializer_class(self):
-        if self.action == 'create':
-            return RegisterSerializer
+        # Use UserSerializer for admin-created users (no auto-org creation)
+        # RegisterSerializer is only used via the dedicated RegisterView endpoint
         return UserSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        
+        # Set current_organization if creating through admin viewset
+        if request.user.current_organization and not user.current_organization:
+            user.current_organization = request.user.current_organization
+            user.save()
         
         # Log user creation
         AuditLogService.log_user_create(request.user, user, request)
@@ -217,7 +225,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 organization=self.request.user.current_organization,
                 user=self.request.user
             )
-            if self.request.user.is_staff or org_user.role == OrganizationUser.Role.ADMIN:
+            if self.request.user.is_staff or org_user.role in [OrganizationUser.Role.ADMIN, OrganizationUser.Role.OWNER]:
                 # Scope to admin's current organization to prevent cross-tenant leak
                 return User.objects.filter(
                     current_organization=self.request.user.current_organization

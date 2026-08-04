@@ -4,6 +4,7 @@ import client from '../api/client';
 
 function Users() {
   const [users, setUsers] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -18,7 +19,9 @@ function Users() {
     last_name: '',
     role: 'customer',
     password: '',
-    phone_number: ''
+    phone_number: '',
+    organization_id: '',
+    organization_role: 'viewer'
   });
   
   // Form state for edit user
@@ -28,7 +31,9 @@ function Users() {
     first_name: '',
     last_name: '',
     role: 'customer',
-    is_active: true
+    is_active: true,
+    organization_id: '',
+    organization_role: 'viewer'
   });
   
   // Loading states
@@ -37,7 +42,18 @@ function Users() {
 
   useEffect(() => {
     loadUsers();
+    loadOrganizations();
   }, []);
+
+  async function loadOrganizations() {
+    try {
+      const response = await client.get('/organizations/organizations/').catch(() => ({ data: [] }));
+      const orgsData = response.data.results ?? response.data;
+      setOrganizations(orgsData);
+    } catch (error) {
+      console.error('Error loading organizations:', error);
+    }
+  }
 
   async function loadUsers() {
     try {
@@ -102,7 +118,9 @@ function Users() {
         last_name: '',
         role: 'customer',
         password: '',
-        phone_number: ''
+        phone_number: '',
+        organization_id: '',
+        organization_role: 'viewer'
       });
       
       // Refresh users list
@@ -198,7 +216,9 @@ function Users() {
       last_name: '',
       role: 'customer',
       password: '',
-      phone_number: ''
+      phone_number: '',
+      organization_id: '',
+      organization_role: 'member'
     });
     setShowAddModal(true);
   }
@@ -211,7 +231,9 @@ function Users() {
       first_name: user.first_name,
       last_name: user.last_name,
       role: user.role,
-      is_active: user.is_active
+      is_active: user.is_active,
+      organization_id: user.current_organization_id || '',
+      organization_role: user.current_organization_role || 'viewer'
     });
     setShowEditModal(true);
   }
@@ -295,7 +317,7 @@ function Users() {
                   <td className="px-5 py-3 text-gray-600">
                     <div className="flex items-center gap-1">
                       <Building2 size={14} className="text-gray-400" />
-                      <span className="text-xs">{user.current_organization?.name || 'N/A'}</span>
+                      <span className="text-xs">{user.current_organization_name || 'N/A'}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3">
@@ -392,6 +414,36 @@ function Users() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organization (optional)</label>
+                <select 
+                  value={newUser.organization_id}
+                  onChange={(e) => setNewUser({...newUser, organization_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">No Organization</option>
+                  {organizations.map(org => (
+                    <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
+                </select>
+              </div>
+              {newUser.organization_id && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Organization Role</label>
+                  <select 
+                    value={newUser.organization_role}
+                    onChange={(e) => setNewUser({...newUser, organization_role: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                    <option value="driver">Driver</option>
+                    <option value="dispatcher">Dispatcher</option>
+                    <option value="customer">Customer</option>
+                  </select>
+                </div>
+              )}
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                 <input 
                   type="text" 
@@ -486,6 +538,36 @@ function Users() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organization (optional)</label>
+                <select 
+                  value={editUser.organization_id}
+                  onChange={(e) => setEditUser({...editUser, organization_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">No Organization</option>
+                  {organizations.map(org => (
+                    <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
+                </select>
+              </div>
+              {editUser.organization_id && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Organization Role</label>
+                  <select 
+                    value={editUser.organization_role}
+                    onChange={(e) => setEditUser({...editUser, organization_role: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                    <option value="driver">Driver</option>
+                    <option value="dispatcher">Dispatcher</option>
+                    <option value="customer">Customer</option>
+                  </select>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input 
                   type="checkbox" 

@@ -14,6 +14,7 @@ class TripSerializer(serializers.ModelSerializer):
     stops = TripStopSerializer(many=True, read_only=True)
     vehicle_plate = serializers.CharField(source="vehicle.plate_number", read_only=True)
     driver_name = serializers.CharField(source="driver.user.get_full_name", read_only=True)
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
 
     class Meta:
         model = Trip

@@ -23,7 +23,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
-    permission_classes = [AllowAny]  # Changed from IsAuthenticated to AllowAny for testing
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['entity_type', 'document_type', 'status', 'is_verified']
     search_fields = ['title', 'document_number', 'issuing_authority']
@@ -44,11 +44,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if entity_id:
             queryset = queryset.filter(entity_id=entity_id)
         
-        # For now, return all documents for testing if no filters
-        # In production, implement proper permission filtering
+        # Filter by organization - documents should be scoped to user's organization
+        # This requires understanding how documents relate to organizations
+        # For now, we'll implement basic user-based filtering
+        if not self.request.user.is_superuser and not self.request.user.is_staff:
+            # Non-admin users can only see their own documents
+            queryset = queryset.filter(uploaded_by=self.request.user)
+        
         return queryset
     
-    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    @action(detail=False, methods=['get'])
     def entities(self, request):
         """Get available entities for document management."""
         from accounts.models import User
@@ -57,13 +62,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         entity_type = request.query_params.get('entity_type')
         
-        # For now, be permissive and show all data for testing
-        # In production, you should check user permissions
+        # Filter entities by user's organization
+        user_org = request.user.current_organization
         entities = []
         
         if entity_type == 'user' or not entity_type:
-            # Get all users for now
-            users = User.objects.all()
+            # Get users from the same organization
+            users = User.objects.filter(current_organization=user_org)
             
             entities.extend([
                 {
@@ -77,8 +82,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
             ])
         
         if entity_type == 'vehicle' or not entity_type:
-            # Get all vehicles for now
-            vehicles = Vehicle.objects.all()
+            # Get vehicles from the same organization
+            vehicles = Vehicle.objects.filter(organization=user_org)
             
             entities.extend([
                 {
@@ -92,18 +97,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
             ])
         
         if entity_type == 'organization' or not entity_type:
-            # Get all organizations for now
-            organizations = Organization.objects.all()
-            
-            entities.extend([
-                {
-                    'id': str(o.id),  # Organization IDs are already UUIDs
-                    'name': o.name,
-                    'industry': o.plan,  # Use plan instead of industry
+            # Get only the user's organization
+            if user_org:
+                entities.append({
+                    'id': str(user_org.id),  # Organization IDs are already UUIDs
+                    'name': user_org.name,
+                    'industry': user_org.plan,  # Use plan instead of industry
                     'entity_type': 'organization'
-                }
-                for o in organizations
-            ])
+                })
         
         return Response(entities)
     
@@ -147,7 +148,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(documents, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Get document statistics."""
         queryset = self.get_queryset()
@@ -193,7 +194,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = DocumentStatisticsSerializer(response_data)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
         """Verify or reject a document."""
         document = self.get_object()
@@ -202,7 +203,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             document.is_verified = serializer.validated_data['is_verified']
             document.verification_notes = serializer.validated_data.get('verification_notes', '')
-            document.verified_by = request.user if request.user.is_authenticated else None
+            document.verified_by = request.user
             document.verified_at = timezone.now()
             
             # Update status based on verification
@@ -221,7 +222,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             DocumentVerificationLog.objects.create(
                 document=document,
                 action=action,
-                performed_by=request.user if request.user.is_authenticated else None,
+                performed_by=request.user,
                 notes=notes
             )
             

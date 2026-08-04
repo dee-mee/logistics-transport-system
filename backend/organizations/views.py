@@ -15,11 +15,18 @@ from permissions.models import PermissionGroup
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     """ViewSet for managing organizations."""
-    permission_classes = [AllowAny]  # Simplified for testing
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # For now, return all organizations for testing
-        return Organization.objects.all()
+        # Users can only see organizations they belong to
+        try:
+            org_ids = OrganizationUser.objects.filter(
+                user=self.request.user
+            ).values_list('organization_id', flat=True)
+            return Organization.objects.filter(id__in=org_ids)
+        except Exception as e:
+            # If user has no organizations, return empty queryset
+            return Organization.objects.none()
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -27,38 +34,65 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return OrganizationSerializer
     
     def perform_create(self, serializer):
-        organization = serializer.save()
-        # Automatically create the creator as an owner
-        OrganizationUser.objects.create(
-            organization=organization,
-            user=self.request.user,
-            role=OrganizationUser.Role.OWNER
-        )
-        # Create default settings
-        OrganizationSettings.objects.create(organization=organization)
+        try:
+            organization = serializer.save()
+            # Automatically create the creator as an owner
+            OrganizationUser.objects.create(
+                organization=organization,
+                user=self.request.user,
+                role=OrganizationUser.Role.OWNER
+            )
+            # Set the user's current organization
+            self.request.user.current_organization = organization
+            self.request.user.save()
+            # Create default organization settings
+            OrganizationSettings.objects.create(organization=organization)
+        except Exception as e:
+            # If something goes wrong, delete the organization to avoid orphaned records
+            if 'organization' in locals():
+                organization.delete()
+            raise
     
     @action(detail=True, methods=['get'])
-    def settings(self, request, pk=None):
+    def get_settings(self, request, pk=None):
         """Get organization settings."""
         organization = self.get_object()
-        try:
-            settings = organization.settings
-        except OrganizationSettings.DoesNotExist:
-            settings = OrganizationSettings.objects.create(organization=organization)
+        # Check if user belongs to this organization
+        if not OrganizationUser.objects.filter(
+            organization=organization,
+            user=request.user
+        ).exists():
+            return Response({'error': 'You do not have access to this organization'}, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = OrganizationSettingsSerializer(settings)
+        try:
+            org_settings = organization.org_settings
+        except OrganizationSettings.DoesNotExist:
+            org_settings = OrganizationSettings.objects.create(organization=organization)
+        
+        serializer = OrganizationSettingsSerializer(org_settings)
         return Response(serializer.data)
     
     @action(detail=True, methods=['put', 'patch'])
     def update_settings(self, request, pk=None):
         """Update organization settings."""
         organization = self.get_object()
+        # Check if user is owner or admin
         try:
-            settings = organization.settings
-        except OrganizationSettings.DoesNotExist:
-            settings = OrganizationSettings.objects.create(organization=organization)
+            org_user = OrganizationUser.objects.get(
+                organization=organization,
+                user=request.user
+            )
+            if org_user.role not in [OrganizationUser.Role.OWNER, OrganizationUser.Role.ADMIN]:
+                return Response({'error': 'You do not have permission to update settings'}, status=status.HTTP_403_FORBIDDEN)
+        except OrganizationUser.DoesNotExist:
+            return Response({'error': 'You do not have access to this organization'}, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = OrganizationSettingsSerializer(settings, data=request.data, partial=True)
+        try:
+            org_settings = organization.org_settings
+        except OrganizationSettings.DoesNotExist:
+            org_settings = OrganizationSettings.objects.create(organization=organization)
+        
+        serializer = OrganizationSettingsSerializer(org_settings, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -68,6 +102,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def members(self, request, pk=None):
         """Get organization members."""
         organization = self.get_object()
+        # Check if user belongs to this organization
+        if not OrganizationUser.objects.filter(
+            organization=organization,
+            user=request.user
+        ).exists():
+            return Response({'error': 'You do not have access to this organization'}, status=status.HTTP_403_FORBIDDEN)
+        
         members = organization.members.select_related('user').all()
         serializer = OrganizationUserSerializer(members, many=True)
         return Response(serializer.data)
@@ -76,6 +117,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def invite(self, request, pk=None):
         """Invite a user to the organization."""
         organization = self.get_object()
+        # Check if user is owner or admin
+        try:
+            org_user = OrganizationUser.objects.get(
+                organization=organization,
+                user=request.user
+            )
+            if org_user.role not in [OrganizationUser.Role.OWNER, OrganizationUser.Role.ADMIN]:
+                return Response({'error': 'You do not have permission to invite users'}, status=status.HTTP_403_FORBIDDEN)
+        except OrganizationUser.DoesNotExist:
+            return Response({'error': 'You do not have access to this organization'}, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = InvitationCreateSerializer(data=request.data)
         
         if serializer.is_valid():
@@ -102,12 +154,20 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
 class OrganizationUserViewSet(viewsets.ModelViewSet):
     """ViewSet for managing organization memberships."""
-    permission_classes = [AllowAny]  # Simplified for testing
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = OrganizationUserSerializer
     
     def get_queryset(self):
-        # For now, return all organization users for testing
-        return OrganizationUser.objects.all().select_related('user', 'organization')
+        # Users can only see organization memberships for their own organizations
+        try:
+            org_ids = OrganizationUser.objects.filter(
+                user=self.request.user
+            ).values_list('organization_id', flat=True)
+            return OrganizationUser.objects.filter(
+                organization_id__in=org_ids
+            ).select_related('user', 'organization')
+        except Exception as e:
+            return OrganizationUser.objects.none()
     
     @action(detail=False, methods=['get'])
     def my_organizations(self, request):
@@ -121,12 +181,18 @@ class OrganizationUserViewSet(viewsets.ModelViewSet):
 
 class InvitationViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for managing invitations."""
-    permission_classes = [AllowAny]  # Simplified for testing
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = InvitationSerializer
     
     def get_queryset(self):
-        # For now, return all invitations for testing
-        return Invitation.objects.all()
+        # Users can only see invitations for their own organizations
+        try:
+            org_ids = OrganizationUser.objects.filter(
+                user=self.request.user
+            ).values_list('organization_id', flat=True)
+            return Invitation.objects.filter(organization_id__in=org_ids)
+        except Exception as e:
+            return Invitation.objects.none()
     
     @action(detail=True, methods=['post'])
     def accept(self, request, pk=None):
@@ -159,6 +225,10 @@ class InvitationViewSet(viewsets.ReadOnlyModelViewSet):
             user=request.user,
             role=invitation.role
         )
+        
+        # Set the user's current organization to the invited organization
+        request.user.current_organization = invitation.organization
+        request.user.save()
         
         invitation.status = Invitation.Status.ACCEPTED
         invitation.accepted_at = timezone.now()

@@ -1,6 +1,8 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from django.utils.text import slugify
+import uuid
 
 
 class Organization(models.Model):
@@ -18,7 +20,7 @@ class Organization(models.Model):
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
     plan = models.CharField(max_length=20, choices=Plan.choices, default=Plan.BASIC)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.TRIAL)
     
@@ -46,6 +48,18 @@ class Organization(models.Model):
     class Meta:
         ordering = ['name']
         indexes = [models.Index(fields=['slug'])]
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            # Generate a unique slug
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            while Organization.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
     
     def __str__(self):
         return self.name
@@ -85,7 +99,7 @@ class OrganizationSettings(models.Model):
     """Organization-specific settings and preferences."""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.OneToOneField(Organization, on_delete=models.CASCADE, related_name='settings')
+    organization = models.OneToOneField(Organization, on_delete=models.CASCADE, related_name='org_settings')
     
     # Feature flags
     enable_gps_tracking = models.BooleanField(default=True)

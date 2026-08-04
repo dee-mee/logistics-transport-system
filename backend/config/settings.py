@@ -241,14 +241,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': env('DB_NAME', default='logistics'),
-        'USER': env('DB_USER', default='logistics'),
-        'PASSWORD': env('DB_PASSWORD', default='changeme'),
-        'HOST': env('DB_HOST', default='localhost'),
-        'PORT': env('DB_PORT', default='5432'),
-    }
+    'default': env.db('DATABASE_URL', default='postgis://logistics:changeme@localhost:5432/logistics')
 }
 
 

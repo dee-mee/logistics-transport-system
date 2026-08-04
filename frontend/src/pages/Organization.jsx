@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, Search, Edit, Trash2, MapPin, Phone, Mail, Globe } from 'lucide-react';
+import { Building2, Plus, Search, Edit, Trash2, MapPin, Phone, Mail, Globe, UserPlus } from 'lucide-react';
 import client from '../api/client';
 
 function Organization() {
@@ -8,7 +8,21 @@ function Organization() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+  const [inviteData, setInviteData] = useState({
+    email: '',
+    role: 'member',
+    message: ''
+  });
+  const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     loadOrganizations();
@@ -27,9 +41,39 @@ function Organization() {
     }
   }
 
+  async function handleCreateOrganization() {
+    try {
+      setCreating(true);
+      await client.post('/organizations/organizations/', formData);
+      setShowAddModal(false);
+      setFormData({ name: '', email: '', phone: '', address: '' });
+      loadOrganizations();
+    } catch (error) {
+      console.error('Error creating organization:', error);
+      alert('Failed to create organization. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleInviteUser() {
+    try {
+      setInviting(true);
+      await client.post(`/organizations/organizations/${selectedOrg.id}/invite/`, inviteData);
+      setShowInviteModal(false);
+      setInviteData({ email: '', role: 'member', message: '' });
+      alert('Invitation sent successfully!');
+    } catch (error) {
+      console.error('Error inviting user:', error);
+      alert('Failed to send invitation. Please try again.');
+    } finally {
+      setInviting(false);
+    }
+  }
+
   const filteredOrgs = organizations.filter(org => 
     org.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    org.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    org.slug?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     org.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -76,7 +120,7 @@ function Organization() {
             <thead>
               <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
                 <th className="px-5 py-3 font-medium">Organization</th>
-                <th className="px-5 py-3 font-medium">Code</th>
+                <th className="px-5 py-3 font-medium">Slug</th>
                 <th className="px-5 py-3 font-medium">Contact</th>
                 <th className="px-5 py-3 font-medium">Location</th>
                 <th className="px-5 py-3 font-medium">Status</th>
@@ -93,12 +137,12 @@ function Organization() {
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">{org.name}</div>
-                        <div className="text-xs text-gray-500">{org.type || 'Company'}</div>
+                        <div className="text-xs text-gray-500">{org.plan || 'Basic'}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-3 text-gray-600 font-mono text-xs">
-                    {org.code}
+                    {org.slug}
                   </td>
                   <td className="px-5 py-3">
                     <div className="space-y-1">
@@ -119,20 +163,29 @@ function Organization() {
                   <td className="px-5 py-3 text-gray-600">
                     <div className="flex items-center gap-1">
                       <MapPin size={14} className="text-gray-400" />
-                      <span className="text-xs">{org.city || org.address || 'N/A'}</span>
+                      <span className="text-xs">{org.address || 'N/A'}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs ${
-                      org.is_active 
+                      org.status === 'active' 
                         ? 'bg-green-100 text-green-700' 
+                        : org.status === 'trial'
+                        ? 'bg-blue-100 text-blue-700'
                         : 'bg-red-100 text-red-700'
                     }`}>
-                      {org.is_active ? 'Active' : 'Inactive'}
+                      {org.status ? org.status.charAt(0).toUpperCase() + org.status.slice(1) : 'Unknown'}
                     </span>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setSelectedOrg(org); setShowInviteModal(true); }}
+                        className="text-gray-400 hover:text-blue-600"
+                        title="Invite User"
+                      >
+                        <UserPlus size={16} />
+                      </button>
                       <button
                         onClick={() => { setSelectedOrg(org); setShowEditModal(true); }}
                         className="text-gray-400 hover:text-gray-600"
@@ -161,56 +214,62 @@ function Organization() {
             <h2 className="text-lg font-semibold mb-4">Add Organization</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Organization Name</label>
-                <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Organization Name *</label>
+                <input 
+                  type="text" 
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  placeholder="Enter organization name"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
-                <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  <option value="company">Company</option>
-                  <option value="branch">Branch</option>
-                  <option value="depot">Depot</option>
-                  <option value="warehouse">Warehouse</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input 
+                  type="email" 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="Enter email address"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input type="tel" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input 
+                  type="tel" 
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="Enter phone number"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                  <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                  <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                </div>
+                <textarea 
+                  value={formData.address}
+                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  rows="2"
+                  placeholder="Enter address"
+                />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setFormData({ name: '', email: '', phone: '', address: '' });
+                }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm"
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af]"
+                onClick={handleCreateOrganization}
+                disabled={creating || !formData.name || !formData.email}
+                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add Organization
+                {creating ? 'Creating...' : 'Add Organization'}
               </button>
             </div>
           </div>
@@ -277,6 +336,68 @@ function Organization() {
                 className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af]"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInviteModal && selectedOrg && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-lg font-semibold mb-4">Invite User to {selectedOrg.name}</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input 
+                  type="email" 
+                  value={inviteData.email}
+                  onChange={(e) => setInviteData({...inviteData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="Enter user email"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select 
+                  value={inviteData.role}
+                  onChange={(e) => setInviteData({...inviteData, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="member">Member</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                  <option value="driver">Driver</option>
+                  <option value="dispatcher">Dispatcher</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message (optional)</label>
+                <textarea 
+                  value={inviteData.message}
+                  onChange={(e) => setInviteData({...inviteData, message: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                  rows="3"
+                  placeholder="Add a personal message"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowInviteModal(false);
+                  setInviteData({ email: '', role: 'member', message: '' });
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleInviteUser}
+                disabled={inviting || !inviteData.email}
+                className="px-4 py-2 bg-[#1e3a8a] text-white rounded-lg text-sm hover:bg-[#1e40af] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {inviting ? 'Sending...' : 'Send Invitation'}
               </button>
             </div>
           </div>

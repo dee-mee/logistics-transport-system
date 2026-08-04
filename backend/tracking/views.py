@@ -18,13 +18,13 @@ from permissions.models import PermissionGroup
 
 class ShipmentStatusEventViewSet(viewsets.ModelViewSet):
     """ViewSet for managing shipment status events."""
-    # module = PermissionGroup.Module.TRACKING
-    permission_classes = [permissions.AllowAny]  # Changed for testing
+    module = PermissionGroup.Module.TRACKING
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
-        # For now, return all status events without organization filtering
-        # TODO: Implement proper organization filtering
-        return ShipmentStatusEvent.objects.all().select_related("shipment")
+        return ShipmentStatusEvent.objects.filter(
+            shipment__organization=self.request.user.current_organization
+        ).select_related("shipment")
     
     serializer_class = ShipmentStatusEventSerializer
     filter_backends = [DjangoFilterBackend]
@@ -33,13 +33,13 @@ class ShipmentStatusEventViewSet(viewsets.ModelViewSet):
 
 class VehicleLocationPingViewSet(viewsets.ModelViewSet):
     """ViewSet for managing manual vehicle location updates from drivers."""
-    # module = PermissionGroup.Module.TRACKING
-    permission_classes = [permissions.AllowAny]  # Changed for testing
+    module = PermissionGroup.Module.TRACKING
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
-        # For now, return all location pings without organization filtering
-        # TODO: Implement proper organization filtering
-        return VehicleLocationPing.objects.all().select_related("vehicle", "driver").order_by("-recorded_at")
+        return VehicleLocationPing.objects.filter(
+            organization=self.request.user.current_organization
+        ).select_related("vehicle", "driver").order_by("-recorded_at")
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -48,9 +48,14 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # Auto-set organization from vehicle
-        vehicle = serializer.validated_data['vehicle']
-        organization = vehicle.organization
-        serializer.save(organization=organization)
+        vehicle = serializer.validated_data.get('vehicle')
+        if vehicle:
+            if vehicle.organization != self.request.user.current_organization:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Vehicle does not belong to your organization")
+            serializer.save(organization=vehicle.organization)
+        else:
+            serializer.save(organization=self.request.user.current_organization)
     
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["vehicle", "driver", "status_update"]
@@ -148,9 +153,14 @@ class GPSAlertViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # Auto-set organization from vehicle
-        vehicle = serializer.validated_data['vehicle']
-        organization = vehicle.organization
-        serializer.save(organization=organization)
+        vehicle = serializer.validated_data.get('vehicle')
+        if vehicle:
+            if vehicle.organization != self.request.user.current_organization:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Vehicle does not belong to your organization")
+            serializer.save(organization=vehicle.organization)
+        else:
+            serializer.save(organization=self.request.user.current_organization)
     
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["vehicle", "alert_type", "severity", "status"]

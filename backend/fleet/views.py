@@ -17,13 +17,13 @@ from permissions.models import PermissionGroup
 
 class VehicleViewSet(viewsets.ModelViewSet):
     """ViewSet for managing vehicles."""
-    # module = PermissionGroup.Module.VEHICLES
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
-        # For now, return all vehicles without organization filtering
-        # TODO: Implement proper organization filtering
-        return Vehicle.objects.all().select_related('organization').order_by("-created_at")
+        return Vehicle.objects.filter(
+            organization=self.request.user.current_organization
+        ).select_related('organization').order_by("-created_at")
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -31,11 +31,9 @@ class VehicleViewSet(viewsets.ModelViewSet):
         return VehicleSerializer
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
-        serializer.save()
+        serializer.save(organization=self.request.user.current_organization)
     
     def perform_update(self, serializer):
-        # TODO: Implement organization assignment
         serializer.save()
     
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -109,8 +107,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def analytics(self, request):
         """Get fleet analytics and statistics."""
-        # For now, get all vehicles without organization filtering
-        vehicles = Vehicle.objects.all()
+        vehicles = Vehicle.objects.filter(organization=self.request.user.current_organization)
         
         # Vehicle status distribution
         status_counts = vehicles.values('status').annotate(
@@ -187,26 +184,25 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
 class DriverViewSet(viewsets.ModelViewSet):
     """ViewSet for managing drivers."""
-    # module = PermissionGroup.Module.VEHICLES
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    module = PermissionGroup.Module.VEHICLES
+    permission_classes = [HasModuleAccess]
     
     def get_queryset(self):
-        # For now, return all drivers without organization filtering
-        # TODO: Implement proper organization filtering
-        queryset = Driver.objects.all().select_related("user", "assigned_vehicle").order_by("-created_at")
+        queryset = Driver.objects.filter(
+            organization=self.request.user.current_organization
+        ).select_related("user", "assigned_vehicle").order_by("-created_at")
         
-        # Drivers can only see their own record (only if authenticated)
-        if self.request.user.is_authenticated:
-            try:
-                from organizations.models import OrganizationUser
-                org_user = OrganizationUser.objects.get(
-                    organization=self.request.user.current_organization,
-                    user=self.request.user
-                )
-                if org_user.role == OrganizationUser.Role.DRIVER:
-                    queryset = queryset.filter(user=self.request.user)
-            except (OrganizationUser.DoesNotExist, AttributeError):
-                pass
+        # Drivers can only see their own record
+        try:
+            from organizations.models import OrganizationUser
+            org_user = OrganizationUser.objects.get(
+                organization=self.request.user.current_organization,
+                user=self.request.user
+            )
+            if org_user.role == OrganizationUser.Role.DRIVER:
+                queryset = queryset.filter(user=self.request.user)
+        except (OrganizationUser.DoesNotExist, AttributeError):
+            pass
         
         return queryset
     
@@ -216,8 +212,7 @@ class DriverViewSet(viewsets.ModelViewSet):
         return DriverSerializer
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
-        driver = serializer.save()
+        driver = serializer.save(organization=self.request.user.current_organization)
         
         # Sync phone number from user if not provided
         if driver.user and driver.user.phone_number and not driver.phone_number:
@@ -230,7 +225,6 @@ class DriverViewSet(viewsets.ModelViewSet):
             driver.user.save()
     
     def perform_update(self, serializer):
-        # TODO: Implement organization assignment
         driver = serializer.save()
         
         # Sync phone number from user profile
@@ -319,8 +313,7 @@ class DriverViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def analytics(self, request):
         """Get driver analytics and statistics."""
-        # For now, get all drivers without organization filtering
-        drivers = Driver.objects.all()
+        drivers = Driver.objects.filter(organization=self.request.user.current_organization)
         
         # Driver status distribution
         status_counts = drivers.values('status').annotate(
@@ -363,20 +356,22 @@ class DriverViewSet(viewsets.ModelViewSet):
 class MaintenanceRecordViewSet(viewsets.ModelViewSet):
     """ViewSet for managing maintenance records."""
     module = PermissionGroup.Module.VEHICLES
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    permission_classes = [HasModuleAccess]
     serializer_class = MaintenanceRecordSerializer
     
     def get_queryset(self):
-        # For now, return all maintenance records without organization filtering
-        # TODO: Implement proper organization filtering
-        return MaintenanceRecord.objects.all().select_related("vehicle").order_by("-created_at")
+        return MaintenanceRecord.objects.filter(
+            vehicle__organization=self.request.user.current_organization
+        ).select_related("vehicle").order_by("-created_at")
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
+        vehicle = serializer.validated_data['vehicle']
+        if vehicle.organization != self.request.user.current_organization:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Vehicle does not belong to your organization")
         serializer.save()
     
     def perform_update(self, serializer):
-        # TODO: Implement organization assignment
         serializer.save()
     
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -489,20 +484,22 @@ class MaintenanceRecordViewSet(viewsets.ModelViewSet):
 class VehicleDocumentViewSet(viewsets.ModelViewSet):
     """ViewSet for managing vehicle documents."""
     module = PermissionGroup.Module.VEHICLES
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    permission_classes = [HasModuleAccess]
     serializer_class = VehicleDocumentSerializer
     
     def get_queryset(self):
-        # For now, return all vehicle documents without organization filtering
-        # TODO: Implement proper organization filtering
-        return VehicleDocument.objects.all().select_related("vehicle").order_by("-expiry_date")
+        return VehicleDocument.objects.filter(
+            vehicle__organization=self.request.user.current_organization
+        ).select_related("vehicle").order_by("-expiry_date")
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
+        vehicle = serializer.validated_data['vehicle']
+        if vehicle.organization != self.request.user.current_organization:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Vehicle does not belong to your organization")
         serializer.save()
     
     def perform_update(self, serializer):
-        # TODO: Implement organization assignment
         serializer.save()
     
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -579,20 +576,22 @@ class VehicleDocumentViewSet(viewsets.ModelViewSet):
 class VehicleInspectionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing vehicle inspections."""
     module = PermissionGroup.Module.VEHICLES
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    permission_classes = [HasModuleAccess]
     serializer_class = VehicleInspectionSerializer
     
     def get_queryset(self):
-        # For now, return all vehicle inspections without organization filtering
-        # TODO: Implement proper organization filtering
-        return VehicleInspection.objects.all().select_related("vehicle", "driver", "inspected_by").order_by("-inspection_date")
+        return VehicleInspection.objects.filter(
+            vehicle__organization=self.request.user.current_organization
+        ).select_related("vehicle", "driver", "inspected_by").order_by("-inspection_date")
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
+        vehicle = serializer.validated_data['vehicle']
+        if vehicle.organization != self.request.user.current_organization:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Vehicle does not belong to your organization")
         serializer.save(inspected_by=self.request.user)
     
     def perform_update(self, serializer):
-        # TODO: Implement organization assignment
         serializer.save()
     
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]

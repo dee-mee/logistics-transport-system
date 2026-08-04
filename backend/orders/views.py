@@ -9,19 +9,18 @@ from permissions.models import PermissionGroup
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
-    # module = PermissionGroup.Module.ORDERS
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    module = PermissionGroup.Module.ORDERS
+    permission_classes = [HasModuleAccess]
     serializer_class = CustomerSerializer
     queryset = Customer.objects.all()
     
     def get_queryset(self):
-        # For now, return all customers without organization filtering
-        # TODO: Implement proper organization filtering
-        return Customer.objects.all().order_by("-created_at")
+        return Customer.objects.filter(
+            organization=self.request.user.current_organization
+        ).order_by("-created_at")
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
-        customer = serializer.save()
+        customer = serializer.save(organization=self.request.user.current_organization)
         
         # If this customer has a user and that user's role is not 'customer', update it
         if customer.user and customer.user.role != 'customer':
@@ -33,8 +32,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 
 class ShipmentViewSet(viewsets.ModelViewSet):
-    # module = PermissionGroup.Module.ORDERS
-    permission_classes = [rest_permissions.AllowAny]  # Changed for testing
+    module = PermissionGroup.Module.ORDERS
+    permission_classes = [HasModuleAccess]
     serializer_class = ShipmentSerializer
     queryset = Shipment.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -43,7 +42,7 @@ class ShipmentViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = (
-            Shipment.objects.all()
+            Shipment.objects.filter(organization=self.request.user.current_organization)
             .select_related("customer", "driver", "driver__user", "vehicle")
             .order_by("-created_at")
         )
@@ -65,8 +64,7 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        # TODO: Implement organization assignment
-        serializer.save()
+        serializer.save(organization=self.request.user.current_organization)
     
     def perform_update(self, serializer):
         shipment = serializer.save()
@@ -79,6 +77,7 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             # Check if driver has any other active shipments
             active_shipments = Shipment.objects.filter(
                 driver=driver,
+                organization=request.user.current_organization,
                 status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
             ).exclude(id=shipment.id)
             
@@ -107,11 +106,16 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             from fleet.models import Driver, Vehicle
             driver = Driver.objects.get(id=driver_id)
             
+            # Ensure driver belongs to the same organization
+            if driver.organization != request.user.current_organization:
+                return Response({'error': 'Driver does not belong to your organization'}, status=status.HTTP_403_FORBIDDEN)
+            
             print(f"Found driver: {driver.id} - {driver.user.get_full_name()}")
             
             # Check if driver already has active shipments (assigned or in_transit)
             active_shipments = Shipment.objects.filter(
                 driver=driver,
+                organization=request.user.current_organization,
                 status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
             ).exclude(id=shipment.id)
             
@@ -125,6 +129,9 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             
             if vehicle_id:
                 vehicle = Vehicle.objects.get(id=vehicle_id)
+                # Ensure vehicle belongs to the same organization
+                if vehicle.organization != request.user.current_organization:
+                    return Response({'error': 'Vehicle does not belong to your organization'}, status=status.HTTP_403_FORBIDDEN)
             else:
                 vehicle = None
             

@@ -1,7 +1,6 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q, Count, Sum, Avg, F
@@ -23,7 +22,7 @@ class ReportViewSet(viewsets.ModelViewSet):
     
     queryset = Report.objects.all()
     serializer_class = ReportSerializer
-    permission_classes = [AllowAny]  # Changed for testing
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['report_type', 'status', 'entity_type']
     ordering = ['-created_at']
@@ -33,10 +32,9 @@ class ReportViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        # Skip filtering for testing with AllowAny
         # Non-admin users can only see their own reports
-        # if not user.is_superuser and not user.is_staff:
-        #     queryset = queryset.filter(generated_by=user)
+        if not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(generated_by=user)
         
         return queryset
     
@@ -289,7 +287,7 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
     
     queryset = ReportSchedule.objects.all()
     serializer_class = ReportScheduleSerializer
-    permission_classes = [AllowAny]  # Changed for testing
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['report_type', 'frequency', 'is_active']
     ordering = ['next_run']
@@ -299,9 +297,8 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        # Skip filtering for testing with AllowAny
         # Non-admin users can only see their own schedules
-        # if not user.is_superuser and not user.is_staff:
-        #     queryset = queryset.filter(created_by=user)
+        if not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(created_by=user)
         
         return queryset
