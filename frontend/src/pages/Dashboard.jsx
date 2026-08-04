@@ -123,17 +123,36 @@ export default function Dashboard() {
         console.log('All shipments for Recent Activity:', shipments);
         
         // Calculate stats from real data
-        const totalShipments = activeShipments.length;
+        const totalShipments = allShipments.length; // All shipments (including delivered)
+        const activeShipmentsCount = activeShipments.length; // Only non-delivered
         const inTransitShipments = activeShipments.filter(s => s.status === 'in_transit').length;
         
-        console.log('Active shipments count:', totalShipments);
+        // Calculate revenue from all shipments
+        const totalRevenue = allShipments.reduce((sum, s) => sum + (s.price || 0), 0);
+        
+        // Calculate total distance covered using haversine formula
+        let totalDistanceKm = 0;
+        allShipments.forEach(shipment => {
+          if (shipment.pickup_lat && shipment.pickup_lng && 
+              shipment.dropoff_lat && shipment.dropoff_lng) {
+            const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
+            const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
+            const distance = haversineKm(pickup, dropoff);
+            totalDistanceKm += distance;
+          }
+        });
+        
+        console.log('Total shipments (all):', totalShipments);
+        console.log('Active shipments count:', activeShipmentsCount);
         console.log('In transit shipments count:', inTransitShipments);
+        console.log('Total revenue:', totalRevenue);
+        console.log('Total distance covered:', totalDistanceKm);
         
         setStats({
           totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
-          totalShipments: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
-          revenue: { value: '$0', delta: 0, deltaDirection: 'up' },
-          totalExpense: { value: '$0', delta: 0, deltaDirection: 'down' },
+          totalShipments: { value: activeShipmentsCount.toString(), delta: 0, deltaDirection: 'up' },
+          revenue: { value: `$${totalRevenue.toLocaleString()}`, delta: 0, deltaDirection: 'up' },
+          totalExpense: { value: `${totalDistanceKm.toFixed(1)} km`, delta: 0, deltaDirection: 'down' },
         });
         
         // Select first shipment if none selected, prefer in_transit shipments
@@ -354,7 +373,7 @@ export default function Dashboard() {
           deltaDirection={stats.revenue.deltaDirection}
         />
         <StatCard 
-          label="Total Expense" 
+          label="Distance Covered" 
           value={stats.totalExpense.value}
           delta={stats.totalExpense.delta}
           deltaDirection={stats.totalExpense.deltaDirection}
