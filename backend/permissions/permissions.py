@@ -174,13 +174,20 @@ class HasModuleAccess(permissions.BasePermission):
         # Driver role: only their own assigned records
         if role == OrganizationUser.Role.DRIVER:
             if hasattr(obj, 'driver'):
-                return obj.driver == request.user
+                # Check if the shipment's driver matches the user's driver profile
+                driver_profile = getattr(request.user, 'driver_profile', None)
+                if driver_profile:
+                    return obj.driver == driver_profile
+                return False
             if hasattr(obj, 'vehicle'):
                 # Check if driver is assigned to this vehicle
                 from fleet.models import Vehicle
                 try:
                     vehicle = Vehicle.objects.get(id=obj.vehicle.id)
-                    return vehicle.assigned_driver == request.user
+                    driver_profile = getattr(request.user, 'driver_profile', None)
+                    if driver_profile:
+                        return vehicle.assigned_driver == driver_profile
+                    return False
                 except Vehicle.DoesNotExist:
                     return False
             return False
