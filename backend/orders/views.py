@@ -62,10 +62,9 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(driver=driver_profile)
         
         # Drivers should see all their shipments including delivered ones
-        # Filter out delivered shipments from the default list for others
-        # Delivered shipments can still be accessed by ID or with specific filters
-        is_driver = driver_profile is not None
-        if not is_driver and not self.request.query_params.get('include_delivered'):
+        # Admins/Dispatchers should see all shipments including delivered for reporting
+        # Only filter out delivered shipments if explicitly requested
+        if self.request.query_params.get('exclude_delivered'):
             queryset = queryset.exclude(status=Shipment.Status.DELIVERED)
 
         return queryset

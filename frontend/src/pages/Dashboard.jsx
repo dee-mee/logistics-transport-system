@@ -110,21 +110,31 @@ export default function Dashboard() {
       
       if (shipmentsRes.data?.results) {
         const shipments = shipmentsRes.data.results;
-        console.log('All shipments data:', shipments);
-        // Filter out delivered shipments from active orders
-        const activeShipments = shipments.filter(s => s.status !== 'delivered');
+        
+        // Filter based on user role
+        // Drivers: filter out delivered from active, but keep all for Recent Activity
+        // Admins/Dispatchers: show all shipments (including delivered) for full visibility
+        let activeShipments;
+        if (user?.role === 'driver') {
+          activeShipments = shipments.filter(s => s.status !== 'delivered');
+        } else {
+          // Admins see all shipments as active (including delivered for reporting)
+          activeShipments = shipments;
+        }
+        
         setActiveOrders(activeShipments);
         
         // For Recent Activity, use all shipments (including delivered)
         // This way drivers can see their completed work
         setAllShipments(shipments);
         
+        console.log('All shipments data:', shipments);
         console.log('Active shipments:', activeShipments);
         console.log('All shipments for Recent Activity:', shipments);
         
         // Calculate stats from real data (use the shipments variable directly, not state)
-        const totalShipments = shipments.length; // All shipments (including delivered)
-        const activeShipmentsCount = activeShipments.length; // Only non-delivered
+        const totalShipments = shipments.length; // All shipments
+        const activeShipmentsCount = activeShipments.length; // Active shipments
         const inTransitShipments = activeShipments.filter(s => s.status === 'in_transit').length;
         
         // Calculate revenue from all shipments
@@ -150,7 +160,7 @@ export default function Dashboard() {
         
         setStats({
           totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
-          totalShipments: { value: activeShipmentsCount.toString(), delta: 0, deltaDirection: 'up' },
+          totalShipments: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
           revenue: { value: `$${totalRevenue.toLocaleString()}`, delta: 0, deltaDirection: 'up' },
           totalExpense: { value: `${totalDistanceKm.toFixed(1)} km`, delta: 0, deltaDirection: 'down' },
         });
@@ -160,8 +170,11 @@ export default function Dashboard() {
           if (activeShipments.length > 0) {
             const inTransitShipment = activeShipments.find(s => s.status === 'in_transit');
             setSelectedOrderId(inTransitShipment ? inTransitShipment.id : activeShipments[0].id);
+          } else if (shipments.length > 0) {
+            // If no active shipments, select the most recent one from all shipments
+            setSelectedOrderId(shipments[0].id);
           } else {
-            // No active shipments - set selectedOrderId to null to show default map
+            // No shipments at all
             setSelectedOrderId(null);
           }
         }
@@ -397,8 +410,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-3 gap-6 mb-8">
         {activeOrders.length === 0 ? (
           <div className="col-span-3 bg-white rounded-xl shadow-card p-8 text-center text-gray-500">
-            <p className="mb-2">No active shipments</p>
-            <p className="text-sm">You have no active trips at the moment</p>
+            <p className="mb-2">{user?.role === 'driver' ? 'No active shipments' : 'No shipments'}</p>
+            <p className="text-sm">{user?.role === 'driver' ? 'You have no active trips at the moment' : 'Create a shipment to get started'}</p>
           </div>
         ) : (
           activeOrders.map((order) => (
@@ -422,7 +435,7 @@ export default function Dashboard() {
           ) : (
             <MapPanel 
               waypoints={waypoints} 
-              selectedOrder={activeOrders.length > 0 ? allShipments.find(o => o.id === selectedOrderId) : null}
+              selectedOrder={allShipments.find(o => o.id === selectedOrderId)}
             />
           )}
         </div>
@@ -431,13 +444,13 @@ export default function Dashboard() {
             <div className="h-[400px] flex items-center justify-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
             </div>
-          ) : activeOrders.length > 0 ? (
+          ) : selectedOrderId ? (
             <TripDetailPanel tripDetails={tripDetails} />
           ) : (
             <div className="h-[400px] flex items-center justify-center text-gray-500">
               <div className="text-center">
-                <p className="mb-2">No active trips</p>
-                <p className="text-sm">Waiting for new assignment</p>
+                <p className="mb-2">{user?.role === 'driver' ? 'No active trips' : 'No shipment selected'}</p>
+                <p className="text-sm">{user?.role === 'driver' ? 'Waiting for new assignment' : 'Select a shipment to view details'}</p>
               </div>
             </div>
           )}
