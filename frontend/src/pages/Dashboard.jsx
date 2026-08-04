@@ -102,7 +102,8 @@ export default function Dashboard() {
       setLoading(true);
       
       // Fetch shipments data - backend now scopes per-user automatically
-      const shipmentsUrl = '/orders/shipments/';
+      // Fetch all shipments (including delivered) for stats and recent activity
+      const shipmentsUrl = '/orders/shipments/?include_delivered=true';
       const shipmentsRes = await client.get(shipmentsUrl);
       
       console.log('Dashboard shipments response:', shipmentsRes.data);
@@ -113,19 +114,15 @@ export default function Dashboard() {
         
         // Filter based on user role
         // Drivers: filter out delivered from active, but keep all for Recent Activity
-        // Admins/Dispatchers: show all shipments (including delivered) for full visibility
+        // Admins/Dispatchers: filter out delivered from active shipments section
         let activeShipments;
-        if (user?.role === 'driver') {
-          activeShipments = shipments.filter(s => s.status !== 'delivered');
-        } else {
-          // Admins see all shipments as active (including delivered for reporting)
-          activeShipments = shipments;
-        }
+        // Active shipments should only show non-delivered for everyone
+        activeShipments = shipments.filter(s => s.status !== 'delivered');
         
         setActiveOrders(activeShipments);
         
         // For Recent Activity, use all shipments (including delivered)
-        // This way drivers can see their completed work
+        // This way drivers can see their completed work and admins can see full history
         setAllShipments(shipments);
         
         console.log('All shipments data:', shipments);
@@ -170,11 +167,8 @@ export default function Dashboard() {
           if (activeShipments.length > 0) {
             const inTransitShipment = activeShipments.find(s => s.status === 'in_transit');
             setSelectedOrderId(inTransitShipment ? inTransitShipment.id : activeShipments[0].id);
-          } else if (shipments.length > 0) {
-            // If no active shipments, select the most recent one from all shipments
-            setSelectedOrderId(shipments[0].id);
           } else {
-            // No shipments at all
+            // No active shipments - don't select any shipment
             setSelectedOrderId(null);
           }
         }
