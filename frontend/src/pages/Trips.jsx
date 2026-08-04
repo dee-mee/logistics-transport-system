@@ -5,25 +5,48 @@ import StatusBadge from "../components/StatusBadge";
 import ManifestTag from "../components/ManifestTag";
 import { useAuth } from "../context/AuthContext";
 
+const STATUS_OPTIONS = ["planned", "dispatched", "in_progress", "completed", "cancelled"];
+
 export default function Trips() {
   const { user } = useAuth();
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
-    client.get("/dispatch/trips/")
-      .then((res) => setTrips(res.data.results ?? res.data))
+    loadTrips();
+  }, [statusFilter, user]);
+
+  function loadTrips() {
+    setLoading(true);
+    
+    // Build query parameters
+    let queryParams = [];
+    if (statusFilter) {
+      queryParams.push(`status=${statusFilter}`);
+    }
+    
+    const q = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+    
+    client.get(`/dispatch/trips/${q}`)
+      .then((res) => {
+        console.log('Trips response:', res.data);
+        setTrips(res.data.results ?? res.data);
+      })
+      .catch((error) => {
+        console.error('Error loading trips:', error);
+        setTrips([]);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }
 
   const startTrip = async (tripId) => {
     setActionLoading(tripId);
     try {
       await client.post(`/dispatch/trips/${tripId}/start/`);
       // Refresh trips
-      const res = await client.get("/dispatch/trips/");
-      setTrips(res.data.results ?? res.data);
+      loadTrips();
     } catch (error) {
       console.error("Error starting trip:", error);
       alert(error.response?.data?.error || "Failed to start trip");
@@ -37,8 +60,7 @@ export default function Trips() {
     try {
       await client.post(`/dispatch/trips/${tripId}/finish/`);
       // Refresh trips
-      const res = await client.get("/dispatch/trips/");
-      setTrips(res.data.results ?? res.data);
+      loadTrips();
     } catch (error) {
       console.error("Error finishing trip:", error);
       alert(error.response?.data?.error || "Failed to finish trip");
@@ -49,8 +71,22 @@ export default function Trips() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-semibold text-ink mb-1">Trips</h1>
-      <p className="text-sm text-ink-700/60 mb-6">Vehicle + driver runs, each covering one or more shipments.</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-ink mb-1">Trips</h1>
+          <p className="text-sm text-ink-700/60">Vehicle + driver runs, each covering one or more shipments.</p>
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="border border-line rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">All Statuses</option>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="bg-white border border-line rounded-xl overflow-hidden">
         {loading ? (
