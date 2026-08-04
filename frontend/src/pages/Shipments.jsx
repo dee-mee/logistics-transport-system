@@ -299,14 +299,21 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     if (!selectedDriver) return;
     setBusy(true);
     try {
-      await client.post(`/orders/shipments/${shipment.id}/assign_driver/`, {
+      const response = await client.post(`/orders/shipments/${shipment.id}/assign_driver/`, {
         driver_id: selectedDriver,
         vehicle_id: selectedVehicle || null
       });
       setShowAssignDriver(false);
       setSelectedDriver("");
       setSelectedVehicle("");
+      // Call onUpdated to refresh the list
       onUpdated();
+      // Also fetch the updated shipment data
+      const updatedShipment = await client.get(`/orders/shipments/${shipment.id}/`);
+      // Update the local shipment object with the response
+      Object.assign(shipment, updatedShipment.data);
+      // Force a re-render by updating a dummy state
+      setEvents([...events]);
     } catch (err) {
       console.error(err);
       // Handle busy driver error specifically
@@ -326,9 +333,20 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     try {
       console.log('Starting tracking for shipment:', shipment.id, 'Status:', shipment.status, 'Driver:', shipment.driver);
       
+      // If already in_transit, just show a message
+      if (shipment.status === 'in_transit') {
+        alert('Tracking is already active for this shipment');
+        setBusy(false);
+        return;
+      }
+      
       const response = await client.post(`/orders/shipments/${shipment.id}/start_tracking/`);
       
       onUpdated();
+      // Fetch updated shipment data
+      const updatedShipment = await client.get(`/orders/shipments/${shipment.id}/`);
+      Object.assign(shipment, updatedShipment.data);
+      setEvents([...events]);
     } catch (err) {
       console.error('Error starting tracking:', err);
       const errorMessage = err.response?.data?.error || err.response?.data?.detail || 
