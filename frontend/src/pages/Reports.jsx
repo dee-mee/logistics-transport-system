@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, Filter, BarChart3, TrendingUp, DollarSign, Truck, Fuel, Users, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import client from '../api/client';
 
 function Reports() {
   const [reports, setReports] = useState([]);
@@ -18,9 +18,7 @@ function Reports() {
   async function loadReports() {
     try {
       setLoading(true);
-      const response = await axios.get('/api/reports/reports/', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
-      });
+      const response = await client.get('/reports/reports/');
       const reportsData = response.data.results || response.data;
       setReports(Array.isArray(reportsData) ? reportsData : []);
     } catch (error) {
@@ -34,9 +32,7 @@ function Reports() {
 
   async function loadStatistics() {
     try {
-      const response = await axios.get('/api/reports/reports/statistics/', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
-      });
+      const response = await client.get('/reports/reports/statistics/');
       setStatistics(response.data);
     } catch (error) {
       console.error('Error loading statistics:', error);
@@ -57,9 +53,7 @@ function Reports() {
 
   async function generateReport(reportId) {
     try {
-      await axios.post(`/api/reports/reports/${reportId}/generate/`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
-      });
+      await client.post(`/reports/reports/${reportId}/generate/`, {});
       loadReports();
       loadStatistics();
     } catch (error) {
@@ -70,9 +64,8 @@ function Reports() {
 
   async function downloadReport(reportId) {
     try {
-      const response = await axios.get(`/api/reports/reports/${reportId}/download/`, {
+      const response = await client.get(`/reports/reports/${reportId}/download/`, {
         responseType: 'blob',
-        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
       });
       
       // Handle file download
@@ -111,9 +104,7 @@ function Reports() {
         file_format: 'csv'
       };
 
-      const response = await axios.post('/api/reports/reports/', reportData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
-      });
+      const response = await client.post('/reports/reports/', reportData);
       
       setReports([...reports, response.data]);
       // Automatically generate the report
