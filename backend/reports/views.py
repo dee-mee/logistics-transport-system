@@ -13,6 +13,8 @@ import logging
 
 from .models import Report, ReportSchedule
 from .serializers import ReportSerializer, ReportScheduleSerializer
+from permissions.permissions import HasModuleAccess
+from permissions.models import PermissionGroup
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +22,10 @@ logger = logging.getLogger(__name__)
 class ReportViewSet(viewsets.ModelViewSet):
     """ViewSet for Report model with real data generation."""
     
+    module = PermissionGroup.Module.REPORTS
+    permission_classes = [HasModuleAccess]
     queryset = Report.objects.all()
     serializer_class = ReportSerializer
-    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['report_type', 'status', 'entity_type']
     ordering = ['-created_at']
@@ -32,11 +35,17 @@ class ReportViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
+        # Filter by organization
+        queryset = queryset.filter(organization=user.current_organization)
+        
         # Non-admin users can only see their own reports
         if not user.is_superuser and not user.is_staff:
             queryset = queryset.filter(generated_by=user)
         
         return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(organization=self.request.user.current_organization)
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -69,8 +78,9 @@ class ReportViewSet(viewsets.ModelViewSet):
             last_downloaded__gte=week_ago
         ).aggregate(total=Sum('download_count'))['total'] or 0
         
-        # Active schedules
+        # Active schedules for current organization
         active_schedules = ReportSchedule.objects.filter(
+            organization=request.user.current_organization,
             is_active=True,
             next_run__lte=timezone.now() + timedelta(days=30)
         ).count()
@@ -285,9 +295,10 @@ class ReportViewSet(viewsets.ModelViewSet):
 class ReportScheduleViewSet(viewsets.ModelViewSet):
     """ViewSet for ReportSchedule model."""
     
+    module = PermissionGroup.Module.REPORTS
+    permission_classes = [HasModuleAccess]
     queryset = ReportSchedule.objects.all()
     serializer_class = ReportScheduleSerializer
-    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['report_type', 'frequency', 'is_active']
     ordering = ['next_run']
@@ -297,8 +308,14 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
+        # Filter by organization
+        queryset = queryset.filter(organization=user.current_organization)
+        
         # Non-admin users can only see their own schedules
         if not user.is_superuser and not user.is_staff:
             queryset = queryset.filter(created_by=user)
         
         return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(organization=self.request.user.current_organization)

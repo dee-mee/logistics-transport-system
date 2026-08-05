@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.files.storage import default_storage
 import os
+from organizations.models import Organization
 
 
 def report_upload_path(instance, filename):
@@ -46,6 +47,15 @@ class Report(models.Model):
         FAILED = "failed", "Failed"
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Organization
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='reports',
+        null=True,
+        blank=True
+    )
     
     # Report details
     report_type = models.CharField(max_length=50, choices=ReportType.choices)
@@ -127,6 +137,15 @@ class ReportSchedule(models.Model):
         YEARLY = "yearly", "Yearly"
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Organization
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='report_schedules',
+        null=True,
+        blank=True
+    )
     
     report_type = models.CharField(max_length=50, choices=Report.ReportType.choices)
     name = models.CharField(max_length=200)

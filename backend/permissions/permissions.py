@@ -12,6 +12,7 @@ APP_TO_MODULE = {
     'dashboard': PermissionGroup.Module.DASHBOARD,
     'organizations': PermissionGroup.Module.SETTINGS,
     'accounts': PermissionGroup.Module.SETTINGS,
+    'reports': PermissionGroup.Module.REPORTS,
 }
 
 # Mapping of DRF actions to access levels
