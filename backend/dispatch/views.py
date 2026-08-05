@@ -127,6 +127,10 @@ class TripViewSet(viewsets.ModelViewSet):
             trip.actual_end = timezone.now()
             trip.save()
             
+            # Update the driver's aggregate performance stats (trip count, distance)
+            from .services import apply_trip_completion_stats
+            apply_trip_completion_stats(trip)
+            
             # Free the driver
             if trip.driver:
                 # Check if driver has other active trips
