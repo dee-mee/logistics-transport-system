@@ -13,7 +13,7 @@ function CreateShipmentModal({ onClose, onCreated }) {
   const [customers, setCustomers] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [form, setForm] = useState({
-    customer: "", pickup_address: "", dropoff_address: "", weight_kg: "", priority: "standard",
+    customer: "", pickup_address: "", dropoff_address: "", weight_kg: "", priority: "standard", price: "",
     pickup_lat: null, pickup_lng: null, dropoff_lat: null, dropoff_lng: null,
   });
   const [newCustomer, setNewCustomer] = useState({ contact_name: "", contact_phone: "", company_name: "" });
@@ -81,6 +81,7 @@ function CreateShipmentModal({ onClose, onCreated }) {
         dropoff_address: form.dropoff_address.trim(),
         weight_kg: parseFloat(form.weight_kg) || 0,
         priority: form.priority || 'standard',
+        price: form.price !== "" ? parseFloat(form.price) : null,
         pickup_lat: roundTo6Decimals(form.pickup_lat),
         pickup_lng: roundTo6Decimals(form.pickup_lng),
         dropoff_lat: roundTo6Decimals(form.dropoff_lat),
@@ -187,7 +188,7 @@ function CreateShipmentModal({ onClose, onCreated }) {
               }}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-sm font-medium text-ink-700 mb-1.5">Weight (kg)</label>
               <input type="number" step="0.01" value={form.weight_kg}
@@ -202,6 +203,13 @@ function CreateShipmentModal({ onClose, onCreated }) {
                 <option value="express">Express</option>
                 <option value="urgent">Urgent</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">Price ($)</label>
+              <input type="number" step="0.01" min="0" value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                placeholder="Optional"
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
 
@@ -375,6 +383,7 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
               <div className="flex justify-between"><dt className="text-ink-700/60">Dropoff</dt><dd className="text-right">{shipment.dropoff_address}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-700/60">Weight</dt><dd>{shipment.weight_kg} kg</dd></div>
               <div className="flex justify-between"><dt className="text-ink-700/60">Priority</dt><dd className="capitalize">{shipment.priority}</dd></div>
+              <div className="flex justify-between"><dt className="text-ink-700/60">Price</dt><dd>{shipment.price != null ? `$${Number(shipment.price).toLocaleString()}` : '—'}</dd></div>
               {shipment.driver_name && (
                 <div className="flex justify-between"><dt className="text-ink-700/60">Driver</dt><dd className="text-right">{shipment.driver_name}</dd></div>
               )}
@@ -617,6 +626,7 @@ export default function Shipments() {
                 <th className="px-5 py-3 font-medium">Route</th>
                 <th className="px-5 py-3 font-medium">Customer</th>
                 <th className="px-5 py-3 font-medium">Priority</th>
+                <th className="px-5 py-3 font-medium">Price</th>
                 <th className="px-5 py-3 font-medium">Status</th>
               </tr>
             </thead>
@@ -628,6 +638,7 @@ export default function Shipments() {
                   <td className="px-5 py-3 text-ink-700">{s.pickup_address} → {s.dropoff_address}</td>
                   <td className="px-5 py-3 text-ink-700">{s.customer_name}</td>
                   <td className="px-5 py-3 text-ink-700 capitalize">{s.priority}</td>
+                  <td className="px-5 py-3 text-ink-700">{s.price != null ? `$${Number(s.price).toLocaleString()}` : '—'}</td>
                   <td className="px-5 py-3"><StatusBadge status={s.status} /></td>
                 </tr>
               ))}

@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     totalOrders: { value: '0', delta: 0, deltaDirection: 'up' },
     totalShipments: { value: '0', delta: 0, deltaDirection: 'up' },
+    inTransit: { value: '0', delta: 0, deltaDirection: 'up' },
     revenue: { value: '$0', delta: 0, deltaDirection: 'up' },
     totalExpense: { value: '$0', delta: 0, deltaDirection: 'down' },
   });
@@ -157,7 +158,8 @@ export default function Dashboard() {
         
         setStats({
           totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
-          totalShipments: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
+          totalShipments: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
+          inTransit: { value: inTransitShipments.toString(), delta: 0, deltaDirection: 'up' },
           revenue: { value: `$${totalRevenue.toLocaleString()}`, delta: 0, deltaDirection: 'up' },
           totalExpense: { value: `${totalDistanceKm.toFixed(1)} km`, delta: 0, deltaDirection: 'down' },
         });
@@ -360,7 +362,7 @@ export default function Dashboard() {
       </div>
       
       {/* Stat Cards Row */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-5 gap-6 mb-8">
         <StatCard 
           label="Total Orders" 
           value={stats.totalOrders.value}
@@ -372,6 +374,12 @@ export default function Dashboard() {
           value={stats.totalShipments.value}
           delta={stats.totalShipments.delta}
           deltaDirection={stats.totalShipments.deltaDirection}
+        />
+        <StatCard 
+          label="In Transit" 
+          value={stats.inTransit.value}
+          delta={stats.inTransit.delta}
+          deltaDirection={stats.inTransit.deltaDirection}
         />
         <StatCard 
           label="Revenue" 
