@@ -93,7 +93,12 @@ function TripDrawer({ trip, onClose }) {
                       <div className="font-medium text-ink">
                         {stop.stop_type === 'pickup' ? '🚩 Pickup' : '🏁 Dropoff'}
                       </div>
-                      <div className="text-ink-700/70">{stop.shipment_tracking_code}</div>
+                      <div className="text-ink-700/70">
+                        {stop.stop_type === 'pickup' ? stop.pickup_address : stop.dropoff_address}
+                      </div>
+                      <div className="text-xs text-ink-700/50 mt-1">
+                        {stop.shipment_tracking_code}
+                      </div>
                       {stop.notes && <p className="text-ink-700/50 text-xs mt-1">{stop.notes}</p>}
                     </div>
                   </div>

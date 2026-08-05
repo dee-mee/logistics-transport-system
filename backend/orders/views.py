@@ -84,6 +84,8 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         # If shipment is marked as delivered, free the driver and vehicle
         if shipment.status == Shipment.Status.DELIVERED and shipment.driver:
             from fleet.models import Driver, Vehicle
+            from dispatch.models import Trip
+            from django.utils import timezone
             driver = shipment.driver
             
             # Check if driver has any other active shipments
@@ -100,6 +102,20 @@ class ShipmentViewSet(viewsets.ModelViewSet):
                 print(f"Driver {driver.user.get_full_name()} freed and set to available")
             else:
                 print(f"Driver {driver.user.get_full_name()} still has active shipments, keeping current status")
+            
+            # Update associated trip's actual_end time
+            try:
+                trip = Trip.objects.filter(
+                    shipments=shipment,
+                    status=Trip.Status.IN_PROGRESS
+                ).first()
+                if trip:
+                    trip.actual_end = timezone.now()
+                    trip.status = Trip.Status.COMPLETED
+                    trip.save()
+                    print(f"Trip {trip.reference} completed with end time")
+            except Exception as e:
+                print(f"Error updating trip end time: {e}")
             
             # Free the vehicle if assigned
             if shipment.vehicle:
@@ -170,6 +186,45 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             shipment.status = Shipment.Status.ASSIGNED
             shipment.save()
             
+            # Create a planned trip with scheduled start time
+            from dispatch.models import Trip, TripStop
+            from django.utils import timezone
+            from datetime import timedelta
+            try:
+                # Set scheduled start to 1 hour from now by default
+                scheduled_start = timezone.now() + timedelta(hours=1)
+                
+                trip = Trip.objects.create(
+                    organization=request.user.current_organization,
+                    driver=driver,
+                    vehicle=vehicle,
+                    status=Trip.Status.PLANNED,
+                    scheduled_start=scheduled_start,
+                    notes=f'Trip for shipment {shipment.tracking_code}'
+                )
+                print(f"Planned trip created: {trip.reference}, scheduled for: {scheduled_start}")
+                
+                # Create pickup stop
+                TripStop.objects.create(
+                    trip=trip,
+                    shipment=shipment,
+                    stop_type='pickup',
+                    sequence=1
+                )
+                
+                # Create dropoff stop
+                TripStop.objects.create(
+                    trip=trip,
+                    shipment=shipment,
+                    stop_type='dropoff',
+                    sequence=2
+                )
+                
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print(f"Error creating planned trip: {e}")
+            
             print(f"Assignment successful - New status: {shipment.status}, New driver: {shipment.driver}")
             
             # Create status event for assignment
@@ -221,12 +276,14 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             
             # Create a Trip record for this shipment
             from dispatch.models import Trip, TripStop
+            from django.utils import timezone
             try:
                 trip = Trip.objects.create(
                     organization=request.user.current_organization,
                     driver=shipment.driver,
                     vehicle=shipment.vehicle,  # Can be null now
                     status=Trip.Status.IN_PROGRESS,  # Already in progress since tracking started
+                    actual_start=timezone.now(),  # Set actual start time when tracking starts
                     notes=f'Trip for shipment {shipment.tracking_code}'
                 )
                 print(f"Trip created: {trip.id}")

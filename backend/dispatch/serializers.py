@@ -4,6 +4,8 @@ from .models import Trip, TripStop
 
 class TripStopSerializer(serializers.ModelSerializer):
     shipment_tracking_code = serializers.CharField(source="shipment.tracking_code", read_only=True)
+    pickup_address = serializers.CharField(source="shipment.pickup_address", read_only=True)
+    dropoff_address = serializers.CharField(source="shipment.dropoff_address", read_only=True)
 
     class Meta:
         model = TripStop
