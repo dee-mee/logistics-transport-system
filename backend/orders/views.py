@@ -142,9 +142,10 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         shipment = self.get_object()
         driver_id = request.data.get('driver_id')
         vehicle_id = request.data.get('vehicle_id')
+        scheduled_start = request.data.get('scheduled_start')
         
         print(f"Assign driver request - Shipment ID: {shipment.id}, Current status: {shipment.status}, Current driver: {shipment.driver}")
-        print(f"Driver ID: {driver_id}, Vehicle ID: {vehicle_id}")
+        print(f"Driver ID: {driver_id}, Vehicle ID: {vehicle_id}, Scheduled Start: {scheduled_start}")
         
         if not driver_id:
             return Response({'error': 'Driver ID is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -190,19 +191,34 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             # Create a planned trip with scheduled start time
             from dispatch.models import Trip, TripStop
             from django.utils import timezone
+            from datetime import datetime
             try:
-                # Set scheduled start to 1 hour from now by default
-                scheduled_start = timezone.now() + timedelta(hours=1)
+                # Use custom scheduled time if provided, otherwise default to 1 hour from now
+                if scheduled_start:
+                    # Parse the datetime string from frontend
+                    try:
+                        from dateutil import parser
+                        scheduled_start_dt = parser.parse(scheduled_start)
+                        # Make it timezone-aware if it's not
+                        if scheduled_start_dt.tzinfo is None:
+                            scheduled_start_dt = timezone.make_aware(scheduled_start_dt)
+                        scheduled_start_final = scheduled_start_dt
+                    except Exception as e:
+                        print(f"Error parsing scheduled time: {e}, using default")
+                        scheduled_start_final = timezone.now() + timedelta(hours=1)
+                else:
+                    # Set scheduled start to 1 hour from now by default
+                    scheduled_start_final = timezone.now() + timedelta(hours=1)
                 
                 trip = Trip.objects.create(
                     organization=request.user.current_organization,
                     driver=driver,
                     vehicle=vehicle,
                     status=Trip.Status.PLANNED,
-                    scheduled_start=scheduled_start,
+                    scheduled_start=scheduled_start_final,
                     notes=f'Trip for shipment {shipment.tracking_code}'
                 )
-                print(f"Planned trip created: {trip.reference}, scheduled for: {scheduled_start}")
+                print(f"Planned trip created: {trip.reference}, scheduled for: {scheduled_start_final}")
                 
                 # Create pickup stop
                 TripStop.objects.create(

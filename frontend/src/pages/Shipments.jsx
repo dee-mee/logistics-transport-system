@@ -233,6 +233,7 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
   const [vehicles, setVehicles] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
   const [activeShipments, setActiveShipments] = useState([]);
 
   useEffect(() => {
@@ -307,13 +308,21 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     if (!selectedDriver) return;
     setBusy(true);
     try {
-      const response = await client.post(`/orders/shipments/${shipment.id}/assign_driver/`, {
+      const payload = {
         driver_id: selectedDriver,
         vehicle_id: selectedVehicle || null
-      });
+      };
+      
+      // Add scheduled time if provided
+      if (scheduledTime) {
+        payload.scheduled_start = scheduledTime;
+      }
+      
+      const response = await client.post(`/orders/shipments/${shipment.id}/assign_driver/`, payload);
       setShowAssignDriver(false);
       setSelectedDriver("");
       setSelectedVehicle("");
+      setScheduledTime("");
       // Call onUpdated to refresh the list
       onUpdated();
       // Also fetch the updated shipment data
@@ -450,6 +459,16 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
                         </option>
                       ))}
                     </select>
+                    <div>
+                      <label className="block text-sm font-medium text-ink-700 mb-1.5">Scheduled Start Time (optional)</label>
+                      <input 
+                        type="datetime-local" 
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="w-full border border-line rounded-lg px-3 py-2 text-sm"
+                      />
+                      <p className="text-xs text-ink-700/50 mt-1">Leave empty for default (1 hour from now)</p>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={assignDriver}

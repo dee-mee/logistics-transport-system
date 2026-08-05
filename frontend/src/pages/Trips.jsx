@@ -55,6 +55,30 @@ function TripDrawer({ trip, onClose }) {
                   {trip.scheduled_start ? new Date(trip.scheduled_start).toLocaleString() : 'Not set'}
                 </dd>
               </div>
+              {trip.scheduled_start && (
+                <div className="flex justify-between">
+                  <dt className="text-ink-700/60">Time Until Start</dt>
+                  <dd className="text-right">
+                    {(() => {
+                      const now = new Date();
+                      const scheduled = new Date(trip.scheduled_start);
+                      const diffMs = scheduled - now;
+                      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                      if (diffMs < 0) {
+                        return 'Started';
+                      } else if (diffHrs > 24) {
+                        const days = Math.floor(diffHrs / 24);
+                        return `${days} day${days > 1 ? 's' : ''} ${diffHrs % 24}h`;
+                      } else if (diffHrs > 0) {
+                        return `${diffHrs}h ${diffMins}m`;
+                      } else {
+                        return `${diffMins}m`;
+                      }
+                    })()}
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-ink-700/60">Actual Start</dt>
                 <dd className="text-right">
@@ -222,6 +246,7 @@ export default function Trips() {
                 <th className="px-5 py-3 font-medium">Reference</th>
                 <th className="px-5 py-3 font-medium">Vehicle</th>
                 <th className="px-5 py-3 font-medium">Driver</th>
+                <th className="px-5 py-3 font-medium">Scheduled</th>
                 <th className="px-5 py-3 font-medium">Stops</th>
                 <th className="px-5 py-3 font-medium">Status</th>
                 {user?.role === 'driver' && (
@@ -231,14 +256,17 @@ export default function Trips() {
             </thead>
             <tbody>
               {trips.map((t) => (
-                <tr 
-                  key={t.id} 
+                <tr
+                  key={t.id}
                   className="border-b border-line last:border-0 hover:bg-gray-50 cursor-pointer"
                   onClick={() => setSelectedTrip(t)}
                 >
                   <td className="px-5 py-3"><ManifestTag>{t.reference}</ManifestTag></td>
                   <td className="px-5 py-3 text-ink-700">{t.vehicle_plate || 'Not assigned'}</td>
                   <td className="px-5 py-3 text-ink-700">{t.driver_name}</td>
+                  <td className="px-5 py-3 text-ink-700">
+                    {t.scheduled_start ? new Date(t.scheduled_start).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) : 'Not set'}
+                  </td>
                   <td className="px-5 py-3 text-ink-700">{t.stops?.length ?? 0}</td>
                   <td className="px-5 py-3"><StatusBadge status={t.status} /></td>
                   {user?.role === 'driver' && (

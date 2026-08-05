@@ -33,8 +33,8 @@ class VehicleLocationPing(models.Model):
     driver = models.ForeignKey('fleet.Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name="location_updates")
     
     # Location data
-    lat = models.DecimalField(max_digits=9, decimal_places=6)
-    lng = models.DecimalField(max_digits=9, decimal_places=6)
+    lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     address = models.CharField(max_length=255, blank=True)
     
     # Movement data (reported by driver)
