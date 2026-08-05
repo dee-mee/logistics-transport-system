@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, AlertTriangle, CheckCircle, Clock, Download, Trash2, Eye, Filter } from 'lucide-react';
-import axios from 'axios';
+import client from '../api/client';
 import DocumentUpload from './DocumentUpload';
 
 const DocumentList = ({ entityType, entityId, entityName }) => {
@@ -35,7 +35,7 @@ const DocumentList = ({ entityType, entityId, entityName }) => {
   const fetchDocuments = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/documents/documents/', {
+      const response = await client.get('/documents/documents/', {
         params: { entity_type: entityType, entity_id: entityId },
       });
       const docData = response.data.results || response.data;
@@ -58,7 +58,7 @@ const DocumentList = ({ entityType, entityId, entityName }) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
 
     try {
-      await axios.delete(`/api/documents/documents/${documentId}/`);
+      await client.delete(`/documents/documents/${documentId}/`);
       setDocuments(documents.filter(doc => doc.id !== documentId));
     } catch (err) {
       setError('Failed to delete document');
@@ -68,7 +68,7 @@ const DocumentList = ({ entityType, entityId, entityName }) => {
 
   const handleVerify = async (documentId, isVerified) => {
     try {
-      await axios.post(`/api/documents/documents/${documentId}/verify/`, {
+      await client.post(`/documents/documents/${documentId}/verify/`, {
         is_verified: isVerified,
         verification_notes: isVerified ? 'Document verified' : 'Document rejected'
       });

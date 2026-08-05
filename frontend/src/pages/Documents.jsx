@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Folder, FileText, AlertTriangle, Clock, CheckCircle, Search, Filter, Download, Eye, Trash2, Plus } from 'lucide-react';
-import axios from 'axios';
+import client from '../api/client';
 import DocumentList from '../components/DocumentList';
 
 const Documents = () => {
@@ -16,7 +16,7 @@ const Documents = () => {
 
   const fetchStatistics = async () => {
     try {
-      const response = await axios.get('/api/documents/documents/statistics/');
+      const response = await client.get('/documents/documents/statistics/');
       setStatistics(response.data);
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
@@ -266,7 +266,7 @@ const DocumentsByStatus = ({ status, onSelectEntity }) => {
   const fetchDocumentsByStatus = async () => {
     try {
       const displayStatus = getDisplayStatus(status);
-      const response = await axios.get('/api/documents/documents/', {
+      const response = await client.get('/documents/documents/', {
         params: { status: displayStatus }
       });
       const docData = response.data.results || response.data;
@@ -355,7 +355,7 @@ const AllDocuments = ({ onSelectEntity }) => {
 
   const fetchAllDocuments = async () => {
     try {
-      const response = await axios.get('/api/documents/documents/');
+      const response = await client.get('/documents/documents/');
       const docData = response.data.results || response.data;
       setDocuments(Array.isArray(docData) ? docData : []);
     } catch (err) {
@@ -442,7 +442,7 @@ const UserDocuments = ({ onSelectEntity }) => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('/api/documents/documents/entities/?entity_type=user');
+      const response = await client.get('/documents/documents/entities/?entity_type=user');
       const userData = response.data || [];
       setUsers(Array.isArray(userData) ? userData : []);
     } catch (err) {
@@ -514,7 +514,7 @@ const VehicleDocuments = ({ onSelectEntity }) => {
 
   const fetchVehicles = async () => {
     try {
-      const response = await axios.get('/api/documents/documents/entities/?entity_type=vehicle');
+      const response = await client.get('/documents/documents/entities/?entity_type=vehicle');
       const vehicleData = response.data || [];
       setVehicles(Array.isArray(vehicleData) ? vehicleData : []);
     } catch (err) {
@@ -586,7 +586,7 @@ const OrganizationDocuments = ({ onSelectEntity }) => {
 
   const fetchOrganizations = async () => {
     try {
-      const response = await axios.get('/api/documents/documents/entities/?entity_type=organization');
+      const response = await client.get('/documents/documents/entities/?entity_type=organization');
       const orgData = response.data || [];
       setOrganizations(Array.isArray(orgData) ? orgData : []);
     } catch (err) {
