@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from datetime import timedelta
 from .models import Customer, Shipment
 from .serializers import CustomerSerializer, ShipmentSerializer
 from permissions.permissions import HasModuleAccess
@@ -189,7 +190,6 @@ class ShipmentViewSet(viewsets.ModelViewSet):
             # Create a planned trip with scheduled start time
             from dispatch.models import Trip, TripStop
             from django.utils import timezone
-            from datetime import timedelta
             try:
                 # Set scheduled start to 1 hour from now by default
                 scheduled_start = timezone.now() + timedelta(hours=1)
