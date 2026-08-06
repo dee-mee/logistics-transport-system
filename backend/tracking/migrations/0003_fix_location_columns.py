@@ -10,12 +10,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
+        migrations.AlterField(
             model_name='vehiclelocationping',
             name='lat',
             field=models.DecimalField(decimal_places=6, max_digits=9, null=True, blank=True),
         ),
-        migrations.AddField(
+        migrations.AlterField(
             model_name='vehiclelocationping',
             name='lng',
             field=models.DecimalField(decimal_places=6, max_digits=9, null=True, blank=True),
