@@ -293,6 +293,17 @@ class DriverViewSet(viewsets.ModelViewSet):
                 id=vehicle_id,
                 organization=self.request.user.current_organization
             )
+
+            conflicting_driver = Driver.objects.filter(
+                assigned_vehicle=vehicle
+            ).exclude(pk=driver.pk).select_related("user").first()
+            if conflicting_driver:
+                driver_name = conflicting_driver.user.get_full_name() or conflicting_driver.user.username
+                return Response(
+                    {'error': f'Vehicle is already assigned to {driver_name}.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             driver.assigned_vehicle = vehicle
             driver.save()
             return Response({'message': 'Vehicle assigned successfully'})

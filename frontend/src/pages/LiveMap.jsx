@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import client from '../api/client';
 import 'leaflet/dist/leaflet.css';
@@ -19,6 +19,18 @@ let DefaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
+
+function MapViewUpdater({ center, zoom }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!center || center.length !== 2) return;
+    if (Number.isNaN(center[0]) || Number.isNaN(center[1])) return;
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+
+  return null;
+}
 
 // Custom icon for vehicle markers
 const customIcon = (color = '#3B82F6', emoji = '🚗') => {
@@ -255,6 +267,7 @@ const LiveMap = () => {
           zoomControl={true}
           scrollWheelZoom={true}
         >
+          <MapViewUpdater center={mapCenter} zoom={mapZoom} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

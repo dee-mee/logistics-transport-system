@@ -8,6 +8,13 @@ import DocumentManagement from "../components/DocumentManagement";
 import VehicleInspections from "../components/VehicleInspections";
 import FleetAnalytics from "../components/FleetAnalytics";
 
+function formatDriverName(driver) {
+  if (driver?.user_first_name && driver?.user_last_name) {
+    return `${driver.user_first_name} ${driver.user_last_name}`;
+  }
+  return driver?.user_username || driver?.user_name || "Unknown";
+}
+
 function AddVehicleModal({ onClose, onCreated }) {
   const [form, setForm] = useState({ 
     plate_number: "", vehicle_type: "van", make: "", model: "", 
@@ -89,7 +96,7 @@ function AddVehicleModal({ onClose, onCreated }) {
   );
 }
 
-function AddDriverModal({ onClose, onCreated }) {
+function AddDriverModal({ drivers, onClose, onCreated }) {
   const [form, setForm] = useState({ 
     user: "", license_number: "", license_type: "commercial", 
     employment_type: "full_time", status: "available", license_expiry: "",
@@ -106,6 +113,16 @@ function AddDriverModal({ onClose, onCreated }) {
   }, []);
 
   const selectedUser = users.find(u => u.id === form.user);
+  const existingDriverUserIds = new Set(drivers.map((driver) => driver.user).filter(Boolean));
+  const assignedDriversByVehicle = new Map(
+    drivers
+      .filter((driver) => (driver.assigned_vehicle || driver.assigned_vehicle_id))
+      .map((driver) => {
+        const vehicleId = driver.assigned_vehicle || driver.assigned_vehicle_id;
+        const driverName = formatDriverName(driver);
+        return [vehicleId, driverName];
+      })
+  );
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -151,10 +168,11 @@ function AddDriverModal({ onClose, onCreated }) {
             <select required value={form.user} onChange={(e) => setForm({ ...form, user: e.target.value })}
               className="w-full border border-line rounded-lg px-3 py-2 text-sm">
               <option value="">Select a user…</option>
-              {users.filter(u => u.role === 'driver').map((u) => (
+              {users.filter((u) => !existingDriverUserIds.has(u.id)).map((u) => (
                 <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.username})</option>
               ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">Users who already have driver profiles are hidden.</p>
           </div>
           {selectedUser && (
             <div>
@@ -193,10 +211,20 @@ function AddDriverModal({ onClose, onCreated }) {
             <select value={form.assigned_vehicle} onChange={(e) => setForm({ ...form, assigned_vehicle: e.target.value })}
               className="w-full border border-line rounded-lg px-3 py-2 text-sm">
               <option value="">Unassigned</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.plate_number} - {v.make} {v.model}</option>
-              ))}
+              {vehicles.map((v) => {
+                const assignedDriverName = assignedDriversByVehicle.get(v.id);
+                return (
+                  <option key={v.id} value={v.id} disabled={Boolean(assignedDriverName)}>
+                    {assignedDriverName
+                      ? `${v.plate_number} - ${v.make} ${v.model} (assigned to ${assignedDriverName})`
+                      : `${v.plate_number} - ${v.make} ${v.model}`}
+                  </option>
+                );
+              })}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Vehicles already assigned to another driver are shown as unavailable.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Employment type</label>
@@ -342,7 +370,7 @@ function EditVehicleModal({ vehicle, onClose, onUpdated }) {
   );
 }
 
-function EditDriverModal({ driver, onClose, onUpdated }) {
+function EditDriverModal({ driver, drivers, onClose, onUpdated }) {
   const [form, setForm] = useState({ 
     license_number: "", license_type: "commercial", 
     employment_type: "full_time", status: "available", license_expiry: "",
@@ -361,26 +389,49 @@ function EditDriverModal({ driver, onClose, onUpdated }) {
         employment_type: driver.employment_type || "full_time",
         status: driver.status || "available",
         license_expiry: driver.license_expiry ? driver.license_expiry.split('T')[0] : "",
-        assigned_vehicle: driver.assigned_vehicle ? driver.assigned_vehicle.id : "",
+        assigned_vehicle: driver.assigned_vehicle || driver.assigned_vehicle_id || "",
         emergency_contact_name: driver.emergency_contact_name || "",
         emergency_contact_phone: driver.emergency_contact_phone || ""
       });
     }
   }, [driver]);
 
+  const currentVehicleId = driver?.assigned_vehicle || driver?.assigned_vehicle_id || "";
+  const assignedDriversByVehicle = new Map(
+    drivers
+      .filter((item) => item.id !== driver?.id)
+      .filter((item) => (item.assigned_vehicle || item.assigned_vehicle_id))
+      .map((item) => {
+        const vehicleId = item.assigned_vehicle || item.assigned_vehicle_id;
+        const driverName = formatDriverName(item);
+        return [vehicleId, driverName];
+      })
+  );
+
   async function handleSubmit(e) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      // Convert empty string to null for assigned_vehicle
       const formData = { ...form };
       if (formData.assigned_vehicle === "") {
         formData.assigned_vehicle = null;
       }
-      
-      await client.put(`/fleet/drivers/${driver.id}/`, formData);
-      onUpdated();
+
+      delete formData.user;
+
+      if (formData.license_expiry === "") {
+        delete formData.license_expiry;
+      }
+      if (formData.emergency_contact_name === "") {
+        delete formData.emergency_contact_name;
+      }
+      if (formData.emergency_contact_phone === "") {
+        delete formData.emergency_contact_phone;
+      }
+
+      const response = await client.patch(`/fleet/drivers/${driver.id}/`, formData);
+      onUpdated?.(response.data);
     } catch (err) {
       console.error('Error updating driver:', err);
       const errorMessage = err.response?.data?.detail || err.response?.data?.error || 
@@ -428,10 +479,21 @@ function EditDriverModal({ driver, onClose, onUpdated }) {
             <select value={form.assigned_vehicle} onChange={(e) => setForm({ ...form, assigned_vehicle: e.target.value })}
               className="w-full border border-line rounded-lg px-3 py-2 text-sm">
               <option value="">Unassigned</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.plate_number} - {v.make} {v.model}</option>
-              ))}
+              {vehicles.map((v) => {
+                const assignedDriverName = assignedDriversByVehicle.get(v.id);
+                const isCurrentVehicle = v.id === currentVehicleId;
+                return (
+                  <option key={v.id} value={v.id} disabled={Boolean(assignedDriverName) && !isCurrentVehicle}>
+                    {assignedDriverName && !isCurrentVehicle
+                      ? `${v.plate_number} - ${v.make} ${v.model} (assigned to ${assignedDriverName})`
+                      : `${v.plate_number} - ${v.make} ${v.model}`}
+                  </option>
+                );
+              })}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Vehicles already assigned to another driver are shown as unavailable.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Employment type</label>
@@ -735,6 +797,13 @@ export default function Fleet() {
   const [editMaintenance, setEditMaintenance] = useState(null);
   const [fleetStats, setFleetStats] = useState({});
   const [driverStats, setDriverStats] = useState({});
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [driverSearch, setDriverSearch] = useState("");
+  const [maintenanceSearch, setMaintenanceSearch] = useState("");
+  const [vehicleStatusFilter, setVehicleStatusFilter] = useState("all");
+  const [driverStatusFilter, setDriverStatusFilter] = useState("all");
+  const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("all");
+  const [feedback, setFeedback] = useState(null);
 
   async function load() {
     try {
@@ -756,12 +825,70 @@ export default function Fleet() {
     }
   }
 
+  async function handleDelete(resource, id, label) {
+    const confirmed = window.confirm(`Delete ${label}? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await client.delete(resource);
+      setFeedback({ type: "success", message: `${label} deleted successfully.` });
+      await load();
+    } catch (error) {
+      console.error(`Error deleting ${label}:`, error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.error ||
+        `Couldn't delete ${label}.`;
+      setFeedback({ type: "error", message: errorMessage });
+    }
+  }
+
   useEffect(() => {
     load();
-    // Refresh data every 60 seconds
     const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!feedback) return undefined;
+    const timeout = setTimeout(() => setFeedback(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [feedback]);
+
+  const filteredVehicles = vehicles.filter((vehicle) => {
+    const search = vehicleSearch.trim().toLowerCase();
+    const matchesSearch = !search || [
+      vehicle.plate_number,
+      vehicle.vehicle_type,
+      vehicle.make,
+      vehicle.model,
+    ].filter(Boolean).some((value) => value.toLowerCase().includes(search));
+    const matchesStatus = vehicleStatusFilter === "all" || vehicle.status === vehicleStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredDrivers = drivers.filter((driver) => {
+    const search = driverSearch.trim().toLowerCase();
+    const matchesSearch = !search || [
+      formatDriverName(driver),
+      driver.license_number,
+      driver.license_type,
+      driver.assigned_vehicle_plate,
+      driver.user_phone,
+    ].filter(Boolean).some((value) => value.toLowerCase().includes(search));
+    const matchesStatus = driverStatusFilter === "all" || driver.status === driverStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredMaintenance = maintenance.filter((record) => {
+    const search = maintenanceSearch.trim().toLowerCase();
+    const matchesSearch = !search || [
+      record.vehicle_plate,
+      record.maintenance_type,
+      record.description,
+      record.priority,
+    ].filter(Boolean).some((value) => value.toLowerCase().includes(search));
+    const matchesStatus = maintenanceStatusFilter === "all" || record.status === maintenanceStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <>
@@ -769,6 +896,16 @@ export default function Fleet() {
         <h1 className="text-2xl font-semibold text-gray-900 mb-1">Fleet Management</h1>
         <p className="text-sm text-gray-500">Manage vehicles, drivers, and maintenance schedules.</p>
       </div>
+
+      {feedback && (
+        <div className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+          feedback.type === "success"
+            ? "bg-green-50 text-green-700 border border-green-200"
+            : "bg-red-50 text-red-700 border border-red-200"
+        }`}>
+          {feedback.message}
+        </div>
+      )}
       
       <FleetStats vehicleStats={fleetStats} driverStats={driverStats} />
       
@@ -808,20 +945,34 @@ export default function Fleet() {
                 <input 
                   type="text" 
                   placeholder="Search vehicles..." 
+                  value={vehicleSearch}
+                  onChange={(e) => setVehicleSearch(e.target.value)}
                   className="text-sm border-0 focus:ring-0 px-0 w-64"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-                  <Filter size={16} /> Filter
-                </button>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Filter size={16} />
+                  <select
+                    value={vehicleStatusFilter}
+                    onChange={(e) => setVehicleStatusFilter(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="available">Available</option>
+                    <option value="on_trip">On Trip</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="out_of_service">Out of Service</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
                 <button onClick={() => setShowAddVehicle(true)}
                   className="flex items-center gap-2 bg-[#1e3a8a] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#1e40af] transition-colors">
                   <Plus size={16} /> Add vehicle
                 </button>
               </div>
             </div>
-            {vehicles.length === 0 ? (
+            {filteredVehicles.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-gray-500">No vehicles yet.</div>
             ) : (
               <table className="w-full text-sm">
@@ -838,7 +989,7 @@ export default function Fleet() {
                   </tr>
                 </thead>
                 <tbody>
-                  {vehicles.map((v) => (
+                  {filteredVehicles.map((v) => (
                     <tr key={v.id} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
                       <td className="px-5 py-3"><ManifestTag>{v.plate_number}</ManifestTag></td>
                       <td className="px-5 py-3 text-gray-700 capitalize">{v.vehicle_type}</td>
@@ -857,7 +1008,7 @@ export default function Fleet() {
                             <Edit size={16} className="text-gray-400" />
                           </button>
                           <button 
-                            onClick={() => {/* Add delete functionality if needed */}}
+                            onClick={() => handleDelete(`/fleet/vehicles/${v.id}/`, v.id, `vehicle ${v.plate_number}`)}
                             className="p-1 hover:bg-gray-100 rounded"
                             title="Delete"
                           >
@@ -880,20 +1031,34 @@ export default function Fleet() {
                 <input 
                   type="text" 
                   placeholder="Search drivers..." 
+                  value={driverSearch}
+                  onChange={(e) => setDriverSearch(e.target.value)}
                   className="text-sm border-0 focus:ring-0 px-0 w-64"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-                  <Filter size={16} /> Filter
-                </button>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Filter size={16} />
+                  <select
+                    value={driverStatusFilter}
+                    onChange={(e) => setDriverStatusFilter(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="available">Available</option>
+                    <option value="on_trip">On Trip</option>
+                    <option value="off_duty">Off Duty</option>
+                    <option value="on_leave">On Leave</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </div>
                 <button onClick={() => setShowAddDriver(true)}
                   className="flex items-center gap-2 bg-[#1e3a8a] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#1e40af] transition-colors">
                   <Plus size={16} /> Add driver
                 </button>
               </div>
             </div>
-            {drivers.length === 0 ? (
+            {filteredDrivers.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-gray-500">No drivers yet.</div>
             ) : (
               <table className="w-full text-sm">
@@ -909,12 +1074,10 @@ export default function Fleet() {
                   </tr>
                 </thead>
                 <tbody>
-                  {drivers.map((d) => (
+                  {filteredDrivers.map((d) => (
                     <tr key={d.id} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
                       <td className="px-5 py-3 text-gray-700">
-                        {d.user_first_name && d.user_last_name 
-                          ? `${d.user_first_name} ${d.user_last_name}` 
-                          : d.user_username || d.user_name || 'Unknown'}
+                        {formatDriverName(d)}
                       </td>
                       <td className="px-5 py-3"><ManifestTag>{d.license_number}</ManifestTag></td>
                       <td className="px-5 py-3 text-gray-700">{d.license_type || "—"}</td>
@@ -931,7 +1094,7 @@ export default function Fleet() {
                             <Edit size={16} className="text-gray-400" />
                           </button>
                           <button 
-                            onClick={() => {/* Add delete functionality */}}
+                            onClick={() => handleDelete(`/fleet/drivers/${d.id}/`, d.id, `driver ${formatDriverName(d)}`)}
                             className="p-1 hover:bg-gray-100 rounded"
                             title="Delete"
                           >
@@ -954,20 +1117,33 @@ export default function Fleet() {
                 <input 
                   type="text" 
                   placeholder="Search maintenance records..." 
+                  value={maintenanceSearch}
+                  onChange={(e) => setMaintenanceSearch(e.target.value)}
                   className="text-sm border-0 focus:ring-0 px-0 w-64"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-                  <Filter size={16} /> Filter
-                </button>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Filter size={16} />
+                  <select
+                    value={maintenanceStatusFilter}
+                    onChange={(e) => setMaintenanceStatusFilter(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
                 <button onClick={() => setShowAddMaintenance(true)}
                   className="flex items-center gap-2 bg-[#1e3a8a] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#1e40af] transition-colors">
                   <Plus size={16} /> Add maintenance
                 </button>
               </div>
             </div>
-            {maintenance.length === 0 ? (
+            {filteredMaintenance.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-gray-500">No maintenance records yet.</div>
             ) : (
               <table className="w-full text-sm">
@@ -982,7 +1158,7 @@ export default function Fleet() {
                   </tr>
                 </thead>
                 <tbody>
-                  {maintenance.map((m) => (
+                  {filteredMaintenance.map((m) => (
                     <tr key={m.id} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
                       <td className="px-5 py-3 text-gray-700">{m.vehicle_plate}</td>
                       <td className="px-5 py-3 text-gray-700 capitalize">{m.maintenance_type?.replace('_', ' ')}</td>
@@ -1007,7 +1183,7 @@ export default function Fleet() {
                             <Edit size={16} className="text-gray-400" />
                           </button>
                           <button 
-                            onClick={() => {/* Add delete functionality */}}
+                            onClick={() => handleDelete(`/fleet/maintenance-records/${m.id}/`, m.id, `maintenance record for ${m.vehicle_plate}`)}
                             className="p-1 hover:bg-gray-100 rounded"
                             title="Delete"
                           >
@@ -1029,9 +1205,26 @@ export default function Fleet() {
       {tab === "analytics" && <FleetAnalytics />}
 
       {showAddVehicle && <AddVehicleModal onClose={() => setShowAddVehicle(false)} onCreated={() => { setShowAddVehicle(false); load(); }} />}
-      {showAddDriver && <AddDriverModal onClose={() => setShowAddDriver(false)} onCreated={() => { setShowAddDriver(false); load(); }} />}
+      {showAddDriver && <AddDriverModal
+        drivers={drivers}
+        onClose={() => setShowAddDriver(false)}
+        onCreated={() => { setShowAddDriver(false); load(); }}
+      />}
       {editVehicle && <EditVehicleModal vehicle={editVehicle} onClose={() => setEditVehicle(null)} onUpdated={() => { setEditVehicle(null); load(); }} />}
-      {editDriver && <EditDriverModal driver={editDriver} onClose={() => setEditDriver(null)} onUpdated={() => { setEditDriver(null); load(); }} />}
+      {editDriver && <EditDriverModal
+        driver={editDriver}
+        drivers={drivers}
+        onClose={() => setEditDriver(null)}
+        onUpdated={(updatedDriver) => {
+          if (updatedDriver) {
+            setDrivers((prev) =>
+              prev.map((d) => (d.id === updatedDriver.id ? { ...d, ...updatedDriver } : d))
+            );
+          }
+          setEditDriver(null);
+          load();
+        }}
+      />}
       {showAddMaintenance && <AddMaintenanceModal onClose={() => setShowAddMaintenance(false)} onCreated={() => { setShowAddMaintenance(false); load(); }} />}
       {editMaintenance && <EditMaintenanceModal maintenance={editMaintenance} onClose={() => setEditMaintenance(null)} onUpdated={() => { setEditMaintenance(null); load(); }} />}
     </>

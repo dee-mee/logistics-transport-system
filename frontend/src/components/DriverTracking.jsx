@@ -17,13 +17,20 @@ if (typeof window !== 'undefined') {
   });
 }
 
-function MapClickHandler({ onMapClick }) {
-  useMapEvents({
-    click: (e) => {
-      onMapClick(e.latlng);
-    },
-  });
-  return null;
+function formatLastReported(recordedAt) {
+  if (!recordedAt) return 'No manual report yet';
+
+  const diffMs = Date.now() - new Date(recordedAt).getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return 'Reported just now';
+  if (diffMinutes < 60) return `Reported ${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `Reported ${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `Reported ${diffDays}d ago`;
 }
 
 function DriverTracking({ shipment }) {
@@ -32,14 +39,11 @@ function DriverTracking({ shipment }) {
   const [locationHistory, setLocationHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reportingLocation, setReportingLocation] = useState(false);
+  const [lastReportedAt, setLastReportedAt] = useState(null);
 
-  // Get shipment-specific colors
   const shipmentColor = getShipmentColor(shipment?.id);
-
-  // Check if current user is a driver (any driver, not just assigned to this shipment)
   const isDriver = user?.role === 'driver';
 
-  // Function for driver to report their current location
   const reportCurrentLocation = async () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
@@ -57,12 +61,9 @@ function DriverTracking({ shipment }) {
       });
 
       const { latitude, longitude } = position.coords;
-      
-      // Round to 6 decimal places to match backend validation
       const roundedLat = Math.round(latitude * 1000000) / 1000000;
       const roundedLng = Math.round(longitude * 1000000) / 1000000;
 
-      // Send location to backend using the new VehicleLocationPing endpoint
       await client.post('/tracking/location-pings/report_location/', {
         lat: roundedLat,
         lng: roundedLng,
@@ -70,9 +71,43 @@ function DriverTracking({ shipment }) {
       });
 
       alert('Location reported successfully!');
+
+      // Refresh from server so trip history and freshness stay consistent
+      const historyRes = await client.get(
+        `/tracking/location-pings/history_for_shipment/?shipment_id=${shipment.id}`
+      );
+      const pings = historyRes.data?.data ?? [];
+      if (pings.length > 0) {
+        const uniqueRoutePoints = [];
+        const seen = new Set();
+        pings.forEach((ping) => {
+          if (!ping.lat || !ping.lng) return;
+          const key = `${ping.lat}-${ping.lng}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueRoutePoints.push({
+              lat: parseFloat(ping.lat),
+              lng: parseFloat(ping.lng),
+              recorded_at: ping.recorded_at,
+            });
+          }
+        });
+        if (uniqueRoutePoints.length > 0) {
+          const latestPing = uniqueRoutePoints[uniqueRoutePoints.length - 1];
+          setLocationHistory(uniqueRoutePoints.map((point) => [point.lat, point.lng]));
+          setDriverLocation(latestPing);
+          setLastReportedAt(latestPing.recorded_at);
+        }
+      } else {
+        setDriverLocation({ lat: roundedLat, lng: roundedLng });
+        setLastReportedAt(new Date().toISOString());
+        setLocationHistory((prev) => [...prev, [roundedLat, roundedLng]]);
+      }
     } catch (error) {
       console.error('Error reporting location:', error);
-      alert('Failed to report location. Please ensure location services are enabled.');
+      const errorMessage = error.response?.data?.error || error.response?.data?.detail ||
+        'Failed to report location. Please ensure location services are enabled and a vehicle is assigned.';
+      alert(errorMessage);
     } finally {
       setReportingLocation(false);
     }
@@ -81,170 +116,89 @@ function DriverTracking({ shipment }) {
   useEffect(() => {
     if (!shipment.driver) return;
 
-    // Clear previous location data when shipment changes
     setDriverLocation(null);
     setLocationHistory([]);
+    setLastReportedAt(null);
     setLoading(true);
 
     const fetchDriverLocation = async () => {
       try {
-        // Fetch tracking events for this shipment
-        const eventsRes = await client.get(`/tracking/status-events/?shipment=${shipment.id}`);
-        
-        console.log('DriverTracking events response for shipment:', shipment.id, eventsRes.data);
-        
-        if (eventsRes.data && eventsRes.data.results) {
-          const events = eventsRes.data.results;
-          
-          console.log('DriverTracking events:', events);
-          console.log('Number of events:', events.length);
-          
-          // Extract location history from events, sorted by timestamp
-          const sortedEvents = events
-            .filter(event => event.lat && event.lng)
-            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-          
-          console.log('Sorted events with coordinates:', sortedEvents);
-          
-          // Remove duplicate coordinates to avoid zigzag
-          const uniqueRoutePoints = [];
-          const seen = new Set();
-          
-          sortedEvents.forEach(event => {
-            const key = `${event.lat}-${event.lng}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              uniqueRoutePoints.push([
-                parseFloat(event.lat),
-                parseFloat(event.lng)
-              ]);
-            }
-          });
-          
-          console.log('DriverTracking unique sorted routePoints:', uniqueRoutePoints);
-          console.log('Number of unique route points:', uniqueRoutePoints.length);
-          
-          setLocationHistory(uniqueRoutePoints);
-          
-          // Set current driver location to most recent event
-          if (uniqueRoutePoints.length > 0) {
-            setDriverLocation({
-              lat: uniqueRoutePoints[uniqueRoutePoints.length - 1][0],
-              lng: uniqueRoutePoints[uniqueRoutePoints.length - 1][1]
+        const historyRes = await client.get(
+          `/tracking/location-pings/history_for_shipment/?shipment_id=${shipment.id}`
+        );
+        const pings = historyRes.data?.data ?? [];
+
+        const uniqueRoutePoints = [];
+        const seen = new Set();
+
+        pings.forEach((ping) => {
+          if (!ping.lat || !ping.lng) return;
+          const key = `${ping.lat}-${ping.lng}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueRoutePoints.push({
+              lat: parseFloat(ping.lat),
+              lng: parseFloat(ping.lng),
+              recorded_at: ping.recorded_at,
+              address: ping.address,
             });
-          } else if (shipment.pickup_lat && shipment.pickup_lng) {
-            // Fallback to pickup location if no tracking events
-            console.log('No tracking events, using pickup location');
-            setDriverLocation({
-              lat: parseFloat(shipment.pickup_lat),
-              lng: parseFloat(shipment.pickup_lng)
-            });
-            
-            // If no tracking events but we have pickup/dropoff, get routed route
-            if (shipment.dropoff_lat && shipment.dropoff_lng) {
-              const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
-              const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
-              
-              console.log('Getting OSRM route from pickup to dropoff');
-              
-              // Use OSRM routing service to get road-based route
-              try {
-                const osrmResponse = await fetch(
-                  `https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${dropoff[1]},${dropoff[0]}?overview=full&geometries=geojson`
-                );
-                const osrmData = await osrmResponse.json();
-                
-                console.log('OSRM response:', osrmData);
-                
-                if (osrmData.routes && osrmData.routes[0]) {
-                  const routeCoords = osrmData.routes[0].geometry.coordinates.map(coord => 
-                    [coord[1], coord[0]] // OSRM returns [lng, lat], we need [lat, lng]
-                  );
-                  
-                  console.log('DriverTracking OSRM route coordinates:', routeCoords);
-                  console.log('Number of route coordinates:', routeCoords.length);
-                  setLocationHistory(routeCoords);
-                } else {
-                  console.log('OSRM returned no routes, using straight line');
-                  setLocationHistory([pickup, dropoff]);
-                }
-              } catch (routingError) {
-                console.error('DriverTracking OSRM routing failed:', routingError);
-                // Fallback to straight line
-                console.log('Using straight line fallback');
-                setLocationHistory([pickup, dropoff]);
-              }
-            }
           }
-        } else {
-          console.log('No events found in response, checking if shipment has coordinates');
-          // Fallback to pickup location if no tracking events
-          if (shipment.pickup_lat && shipment.pickup_lng) {
-            console.log('Using pickup location as fallback');
-            setDriverLocation({
-              lat: parseFloat(shipment.pickup_lat),
-              lng: parseFloat(shipment.pickup_lng)
-            });
-            
-            // If no tracking events but we have pickup/dropoff, get routed route
-            if (shipment.dropoff_lat && shipment.dropoff_lng) {
-              const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
-              const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
-              
-              console.log('Getting OSRM route from pickup to dropoff (no events case)');
-              
-              // Use OSRM routing service to get road-based route
-              try {
-                const osrmResponse = await fetch(
-                  `https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${dropoff[1]},${dropoff[0]}?overview=full&geometries=geojson`
+        });
+
+        if (uniqueRoutePoints.length > 0) {
+          const latestPing = uniqueRoutePoints[uniqueRoutePoints.length - 1];
+          setLocationHistory(uniqueRoutePoints.map((point) => [point.lat, point.lng]));
+          setDriverLocation(latestPing);
+          setLastReportedAt(latestPing.recorded_at);
+        } else if (shipment.pickup_lat && shipment.pickup_lng) {
+          setDriverLocation({
+            lat: parseFloat(shipment.pickup_lat),
+            lng: parseFloat(shipment.pickup_lng)
+          });
+          setLastReportedAt(null);
+
+          if (shipment.dropoff_lat && shipment.dropoff_lng) {
+            const pickup = [parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)];
+            const dropoff = [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)];
+
+            try {
+              const osrmResponse = await fetch(
+                `https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${dropoff[1]},${dropoff[0]}?overview=full&geometries=geojson`
+              );
+              const osrmData = await osrmResponse.json();
+
+              if (osrmData.routes && osrmData.routes[0]) {
+                const routeCoords = osrmData.routes[0].geometry.coordinates.map((coord) =>
+                  [coord[1], coord[0]]
                 );
-                const osrmData = await osrmResponse.json();
-                
-                console.log('OSRM response (no events case):', osrmData);
-                
-                if (osrmData.routes && osrmData.routes[0]) {
-                  const routeCoords = osrmData.routes[0].geometry.coordinates.map(coord => 
-                    [coord[1], coord[0]] // OSRM returns [lng, lat], we need [lat, lng]
-                  );
-                  
-                  console.log('DriverTracking OSRM route coordinates (no events):', routeCoords);
-                  console.log('Number of route coordinates:', routeCoords.length);
-                  setLocationHistory(routeCoords);
-                } else {
-                  console.log('OSRM returned no routes (no events case), using straight line');
-                  setLocationHistory([pickup, dropoff]);
-                }
-              } catch (routingError) {
-                console.error('DriverTracking OSRM routing failed (no events case):', routingError);
-                // Fallback to straight line
-                console.log('Using straight line fallback (no events case)');
+                setLocationHistory(routeCoords);
+              } else {
                 setLocationHistory([pickup, dropoff]);
               }
+            } catch (routingError) {
+              console.error('DriverTracking OSRM routing failed:', routingError);
+              setLocationHistory([pickup, dropoff]);
             }
-          } else {
-            console.log('No coordinates available for shipment');
           }
         }
       } catch (error) {
         console.error('Error fetching driver location:', error);
-        // Fallback to pickup location if API fails
         if (shipment.pickup_lat && shipment.pickup_lng) {
           setDriverLocation({
             lat: parseFloat(shipment.pickup_lat),
             lng: parseFloat(shipment.pickup_lng)
           });
         }
+        setLastReportedAt(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDriverLocation();
-    
-    // Set up polling for real-time updates (every 30 seconds)
     const interval = setInterval(fetchDriverLocation, 30000);
     return () => clearInterval(interval);
-  }, [shipment.id]);
+  }, [shipment.id, shipment.driver, shipment.pickup_lat, shipment.pickup_lng, shipment.dropoff_lat, shipment.dropoff_lng]);
 
   if (loading) {
     return (
@@ -262,7 +216,6 @@ function DriverTracking({ shipment }) {
     );
   }
 
-  // Custom driver icon with shipment color
   const driverIcon = new L.Icon({
     iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -272,7 +225,6 @@ function DriverTracking({ shipment }) {
     shadowSize: [41, 41]
   });
 
-  // Pickup marker with shipment color
   const pickupIcon = new L.Icon({
     iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -282,7 +234,6 @@ function DriverTracking({ shipment }) {
     shadowSize: [41, 41]
   });
 
-  // Dropoff marker with shipment color
   const dropoffIcon = new L.Icon({
     iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -297,15 +248,14 @@ function DriverTracking({ shipment }) {
       <div className="flex items-center justify-between">
         <h3 className="font-medium text-gray-900">Driver Tracking</h3>
         <div className="flex items-center gap-2">
-          <div 
-            className="w-3 h-3 rounded-full" 
+          <div
+            className="w-3 h-3 rounded-full"
             style={{ backgroundColor: shipmentColor.primary }}
           />
-          <span className="text-xs text-gray-500">Live updates every 30s</span>
+          <span className="text-xs text-gray-500">{formatLastReported(lastReportedAt)}</span>
         </div>
       </div>
-      
-      {/* Show report location button for all drivers */}
+
       {isDriver && (
         <button
           onClick={reportCurrentLocation}
@@ -316,7 +266,7 @@ function DriverTracking({ shipment }) {
           {reportingLocation ? 'Reporting...' : 'Report Current Location'}
         </button>
       )}
-      
+
       <div className="h-64 rounded-lg border border-gray-300 overflow-hidden">
         <MapContainer
           center={[driverLocation.lat, driverLocation.lng]}
@@ -327,10 +277,9 @@ function DriverTracking({ shipment }) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
-          
-          {/* Driver location */}
-          <Marker 
-            position={[driverLocation.lat, driverLocation.lng]} 
+
+          <Marker
+            position={[driverLocation.lat, driverLocation.lng]}
             icon={driverIcon}
           >
             <Popup>
@@ -345,20 +294,18 @@ function DriverTracking({ shipment }) {
               </div>
             </Popup>
           </Marker>
-          
-          {/* Route history with shipment color */}
+
           {locationHistory.length > 0 && (
-            <Polyline 
-              positions={locationHistory} 
-              color={shipmentColor.primary} 
+            <Polyline
+              positions={locationHistory}
+              color={shipmentColor.primary}
               weight={3}
               opacity={0.7}
             />
           )}
-          
-          {/* Pickup location */}
+
           {shipment.pickup_lat && shipment.pickup_lng && (
-            <Marker 
+            <Marker
               position={[parseFloat(shipment.pickup_lat), parseFloat(shipment.pickup_lng)]}
               icon={pickupIcon}
             >
@@ -375,10 +322,9 @@ function DriverTracking({ shipment }) {
               </Popup>
             </Marker>
           )}
-          
-          {/* Dropoff location */}
+
           {shipment.dropoff_lat && shipment.dropoff_lng && (
-            <Marker 
+            <Marker
               position={[parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)]}
               icon={dropoffIcon}
             >
@@ -397,7 +343,7 @@ function DriverTracking({ shipment }) {
           )}
         </MapContainer>
       </div>
-      
+
       <div className="grid grid-cols-3 gap-4 text-sm">
         <div className="bg-gray-50 p-3 rounded-lg">
           <div className="text-gray-500 text-xs">Status</div>
@@ -411,6 +357,10 @@ function DriverTracking({ shipment }) {
           <div className="text-gray-500 text-xs">Vehicle</div>
           <div className="font-medium">{shipment.vehicle_plate || 'Not assigned'}</div>
         </div>
+      </div>
+
+      <div className="text-xs text-gray-500">
+        Route line uses manual driver reports when available. If no manual reports exist yet, the map falls back to the planned route between pickup and dropoff.
       </div>
     </div>
   );

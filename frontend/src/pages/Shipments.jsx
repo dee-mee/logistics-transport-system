@@ -24,7 +24,6 @@ function CreateShipmentModal({ onClose, onCreated }) {
   useEffect(() => {
     setLoadingCustomers(true);
     client.get("/orders/customers/").then((res) => {
-      console.log('Customers loaded:', res.data.results ?? res.data);
       setCustomers(res.data.results ?? res.data);
     }).catch((err) => {
       console.error('Error loading customers:', err);
@@ -33,7 +32,6 @@ function CreateShipmentModal({ onClose, onCreated }) {
       setLoadingCustomers(false);
     });
     client.get("/fleet/drivers/").then((res) => {
-      console.log('Drivers loaded:', res.data.results ?? res.data);
     }).catch((err) => {
       console.error('Error loading drivers:', err);
     });
@@ -51,9 +49,6 @@ function CreateShipmentModal({ onClose, onCreated }) {
       }
       
       // Debug logging
-      console.log('Form state before submission:', form);
-      console.log('Pickup address:', form.pickup_address);
-      console.log('Dropoff address:', form.dropoff_address);
       
       // Validate required fields
       if (!form.pickup_address || form.pickup_address.trim() === '') {
@@ -88,7 +83,6 @@ function CreateShipmentModal({ onClose, onCreated }) {
         dropoff_lng: roundTo6Decimals(form.dropoff_lng)
       };
       
-      console.log('Shipment data to send:', shipmentData);
       
       await client.post("/orders/shipments/", shipmentData);
       onCreated();
@@ -161,14 +155,10 @@ function CreateShipmentModal({ onClose, onCreated }) {
               label="Pickup address"
               value={form.pickup_address}
               onChange={(value) => {
-                console.log('Pickup address changed:', value);
-                console.log('Current form state before update:', form);
-                setForm({ ...form, pickup_address: value });
-                console.log('Form state after pickup address update');
+                setForm((prev) => ({ ...prev, pickup_address: value }));
               }}
               onCoordinatesChange={(coords) => {
-                console.log('Pickup coordinates changed:', coords);
-                setForm({ ...form, pickup_lat: coords.lat, pickup_lng: coords.lng });
+                setForm((prev) => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
               }}
             />
           </div>
@@ -177,14 +167,10 @@ function CreateShipmentModal({ onClose, onCreated }) {
               label="Dropoff address"
               value={form.dropoff_address}
               onChange={(value) => {
-                console.log('Dropoff address changed:', value);
-                console.log('Current form state before update:', form);
-                setForm({ ...form, dropoff_address: value });
-                console.log('Form state after dropoff address update');
+                setForm((prev) => ({ ...prev, dropoff_address: value }));
               }}
               onCoordinatesChange={(coords) => {
-                console.log('Dropoff coordinates changed:', coords);
-                setForm({ ...form, dropoff_lat: coords.lat, dropoff_lng: coords.lng });
+                setForm((prev) => ({ ...prev, dropoff_lat: coords.lat, dropoff_lng: coords.lng }));
               }}
             />
           </div>
@@ -242,7 +228,6 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     
     client.get(`/tracking/status-events/?shipment=${shipment.id}`)
       .then((res) => {
-        console.log('ShipmentDrawer events for shipment:', shipment.id, res.data);
         setEvents(res.data.results ?? res.data);
       });
     
@@ -361,7 +346,6 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
   async function startTracking() {
     setBusy(true);
     try {
-      console.log('Starting tracking for shipment:', shipment.id, 'Status:', shipment.status, 'Driver:', shipment.driver);
       
       // If already in_transit, just show a message
       if (shipment.status === 'in_transit') {

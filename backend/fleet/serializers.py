@@ -42,24 +42,43 @@ class DriverSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
     
     def validate(self, attrs):
-        # Set default license expiry if not provided
-        if 'license_expiry' not in attrs or attrs['license_expiry'] is None or attrs['license_expiry'] == '':
+        # Set default license expiry if not provided for new instances only
+        if self.instance is None and ('license_expiry' not in attrs or attrs['license_expiry'] is None or attrs['license_expiry'] == ''):
             from datetime import datetime, timedelta
             attrs['license_expiry'] = datetime.now().date() + timedelta(days=365)
+
+        assigned_vehicle = attrs.get('assigned_vehicle')
+        if assigned_vehicle:
+            conflicting_driver = Driver.objects.filter(assigned_vehicle=assigned_vehicle)
+            if self.instance is not None:
+                conflicting_driver = conflicting_driver.exclude(pk=self.instance.pk)
+
+            if conflicting_driver.exists():
+                raise serializers.ValidationError({
+                    'assigned_vehicle': 'This vehicle is already assigned to another driver.'
+                })
         return attrs
 
 
 class DriverListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views."""
+    user = serializers.UUIDField(source="user.id", read_only=True)
     user_name = serializers.CharField(source="user.get_full_name", read_only=True)
     user_first_name = serializers.CharField(source="user.first_name", read_only=True)
     user_last_name = serializers.CharField(source="user.last_name", read_only=True)
     user_username = serializers.CharField(source="user.username", read_only=True)
+    user_phone = serializers.CharField(source="user.phone_number", read_only=True)
     assigned_vehicle_plate = serializers.CharField(source="assigned_vehicle.plate_number", read_only=True)
+    assigned_vehicle_id = serializers.UUIDField(source="assigned_vehicle.id", read_only=True)
     
     class Meta:
         model = Driver
-        fields = ['id', 'user_name', 'user_first_name', 'user_last_name', 'user_username', 'license_number', 'status', 'employment_type', 'assigned_vehicle_plate']
+        fields = [
+            'id', 'user', 'user_name', 'user_first_name', 'user_last_name', 'user_username', 'user_phone',
+            'license_number', 'license_type', 'license_expiry', 'status', 'employment_type',
+            'emergency_contact_name', 'emergency_contact_phone',
+            'assigned_vehicle', 'assigned_vehicle_plate', 'assigned_vehicle_id'
+        ]
 
 
 class MaintenanceRecordSerializer(serializers.ModelSerializer):

@@ -72,9 +72,14 @@ export default function Dashboard() {
       });
 
       alert('Location reported successfully!');
+      if (selectedOrderId) {
+        fetchTripDetails(selectedOrderId);
+      }
     } catch (error) {
       console.error('Error reporting location:', error);
-      alert('Failed to report location. Please ensure location services are enabled.');
+      const errorMessage = error.response?.data?.error || error.response?.data?.detail ||
+        'Failed to report location. Please ensure location services are enabled and a vehicle is assigned.';
+      alert(errorMessage);
     } finally {
       setReportingLocation(false);
     }
@@ -108,8 +113,6 @@ export default function Dashboard() {
       const shipmentsUrl = '/orders/shipments/?include_delivered=true';
       const shipmentsRes = await client.get(shipmentsUrl);
       
-      console.log('Dashboard shipments response:', shipmentsRes.data);
-      console.log('User role:', user?.role, 'User ID:', user?.id);
       
       if (shipmentsRes.data?.results) {
         const shipments = shipmentsRes.data.results;
@@ -127,9 +130,6 @@ export default function Dashboard() {
         // This way drivers can see their completed work and admins can see full history
         setAllShipments(shipments);
         
-        console.log('All shipments data:', shipments);
-        console.log('Active shipments:', activeShipments);
-        console.log('All shipments for Recent Activity:', shipments);
         
         // Calculate stats from real data (use the shipments variable directly, not state)
         const totalShipments = shipments.length; // All shipments
@@ -152,12 +152,6 @@ export default function Dashboard() {
           }
         });
         
-        console.log('Total shipments (all):', totalShipments);
-        console.log('Active shipments count:', activeShipmentsCount);
-        console.log('In transit shipments count:', inTransitShipments);
-        console.log('Delivered shipments count:', deliveredShipments.length);
-        console.log('Total revenue (from delivered):', totalRevenue);
-        console.log('Total distance covered (from delivered):', totalDistanceKm);
         
         setStats({
           totalOrders: { value: totalShipments.toString(), delta: 0, deltaDirection: 'up' },
@@ -229,23 +223,21 @@ export default function Dashboard() {
       setTripDetails(null);
       setDriverLocation(null);
 
-      console.log('Fetching trip details for order:', orderId);
 
-      const [shipmentRes, eventsRes, locationRes] = await Promise.all([
+      const [shipmentRes, historyRes, locationRes] = await Promise.all([
         client.get(`/orders/shipments/${orderId}/`),
-        client.get(`/tracking/status-events/?shipment=${orderId}`),
+        client.get(`/tracking/location-pings/history_for_shipment/?shipment_id=${orderId}`),
         client.get(`/tracking/location-pings/latest_for_shipment/?shipment_id=${orderId}`),
       ]);
 
-      console.log('Shipment response:', shipmentRes.data);
-      console.log('Events response:', eventsRes.data);
-      console.log('Driver location response:', locationRes.data);
 
       if (shipmentRes.data) setTripDetails(shipmentRes.data);
       
-      // Set driver location if available and shipment is in transit
-      if (locationRes.data?.data && shipmentRes.data?.status === 'in_transit') {
+      // Set driver location if available for active shipments
+      if (locationRes.data?.data && (shipmentRes.data?.status === 'in_transit' || shipmentRes.data?.status === 'assigned')) {
         setDriverLocation(locationRes.data.data);
+      } else {
+        setDriverLocation(null);
       }
 
       const shipment = shipmentRes.data;
@@ -256,35 +248,27 @@ export default function Dashboard() {
         ? [parseFloat(shipment.dropoff_lat), parseFloat(shipment.dropoff_lng)]
         : null;
 
-      console.log('Pickup coords:', pickup);
-      console.log('Dropoff coords:', dropoff);
 
-      // Build the ordered list of known points: pickup -> tracking pings -> dropoff
-      let sortedEvents = [];
-      if (eventsRes.data?.results) {
-        sortedEvents = eventsRes.data.results
-          .filter(e => e.lat && e.lng)
-          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      }
+      // Build the ordered list of known manual location reports: pickup -> pings -> dropoff
+      const sortedPings = (historyRes.data?.data ?? [])
+        .filter((ping) => ping.lat && ping.lng)
+        .sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
 
-      console.log('Sorted events with coordinates:', sortedEvents);
-      console.log('Number of events with coordinates:', sortedEvents.length);
 
       const seen = new Set();
       const trackedPoints = [];
-      sortedEvents.forEach(event => {
-        const key = `${event.lat}-${event.lng}`;
+      sortedPings.forEach((ping) => {
+        const key = `${ping.lat}-${ping.lng}`;
         if (!seen.has(key)) {
           seen.add(key);
           trackedPoints.push({
-            coord: [parseFloat(event.lat), parseFloat(event.lng)],
-            timestamp: event.created_at,
-            description: event.location_description,
+            coord: [parseFloat(ping.lat), parseFloat(ping.lng)],
+            timestamp: ping.recorded_at,
+            description: ping.address || 'Manual location report',
           });
         }
       });
 
-      console.log('Tracked points:', trackedPoints);
 
       // Assemble the full ordered route: pickup, tracked pings (deduped), dropoff
       const orderedCoords = [];
@@ -292,8 +276,6 @@ export default function Dashboard() {
       trackedPoints.forEach(p => orderedCoords.push(p.coord));
       if (dropoff) orderedCoords.push(dropoff);
 
-      console.log('Ordered coords:', orderedCoords);
-      console.log('Number of ordered coords:', orderedCoords.length);
 
       if (orderedCoords.length < 2) {
         // Not enough data to draw anything meaningful

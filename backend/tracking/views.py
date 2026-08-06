@@ -227,6 +227,30 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
+    def history_for_shipment(self, request):
+        """Get all manual location pings for a shipment, ordered oldest to newest."""
+        shipment_id = request.query_params.get('shipment_id')
+        if not shipment_id:
+            return Response(
+                {'error': 'shipment_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            history = VehicleLocationPing.objects.filter(
+                organization=request.user.current_organization,
+                trip_id=shipment_id
+            ).select_related('vehicle', 'driver').order_by('recorded_at')
+
+            serializer = VehicleLocationPingSerializer(history, many=True)
+            return Response({'data': serializer.data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': f'Error fetching location history: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
     def latest_for_shipment(self, request):
         """Get latest location ping for a specific shipment."""
         shipment_id = request.query_params.get('shipment_id')
@@ -239,6 +263,7 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
         try:
             # Get the latest location ping for this shipment
             latest_location = VehicleLocationPing.objects.filter(
+                organization=request.user.current_organization,
                 trip_id=shipment_id
             ).order_by('-recorded_at').first()
             
@@ -264,9 +289,10 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
             if location.vehicle_id not in vehicle_locations:
                 vehicle_locations[location.vehicle_id] = location
         
-        # Check which vehicles are currently on active trips
+        # Check which vehicles are currently on active trips (same org only)
         from orders.models import Shipment
         active_shipments = Shipment.objects.filter(
+            organization=request.user.current_organization,
             status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
         ).select_related('vehicle', 'driver')
         
