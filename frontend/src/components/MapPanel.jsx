@@ -18,11 +18,11 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-function MapPanel({ waypoints, selectedOrder }) {
+function MapPanel({ waypoints, selectedOrder, driverLocation }) {
   // Get shipment-specific colors
   const shipmentColor = getShipmentColor(selectedOrder?.id);
   
-  console.log('MapPanel received:', { waypoints, selectedOrder });
+  console.log('MapPanel received:', { waypoints, selectedOrder, driverLocation });
   
   // Use selected order coordinates if available
   const pickupCoords = selectedOrder?.pickup_lat && selectedOrder?.pickup_lng 
@@ -38,12 +38,18 @@ function MapPanel({ waypoints, selectedOrder }) {
     ? waypoints.map(wp => [wp.lat, wp.lng])
     : [];
   
-  console.log('MapPanel calculated:', { pickupCoords, dropoffCoords, routePositions });
+  // Driver location coordinates
+  const driverCoords = driverLocation?.lat && driverLocation?.lng
+    ? [parseFloat(driverLocation.lat), parseFloat(driverLocation.lng)]
+    : null;
+  
+  console.log('MapPanel calculated:', { pickupCoords, dropoffCoords, routePositions, driverCoords });
   
   // Combine all points for better map centering
   const allPoints = [...routePositions];
   if (pickupCoords) allPoints.push(pickupCoords);
   if (dropoffCoords) allPoints.push(dropoffCoords);
+  if (driverCoords) allPoints.push(driverCoords);
   
   // Default center if no waypoints or coordinates - Nairobi coordinates
   const mapCenter = allPoints.length > 0 
@@ -69,6 +75,15 @@ function MapPanel({ waypoints, selectedOrder }) {
     popupAnchor: [1, -34],
     shadowSize: [41, 41],
     className: 'dropoff-marker'
+  });
+  
+  // Custom car icon for driver location
+  const carIcon = L.divIcon({
+    html: '<div style="font-size: 24px;">🚗</div>',
+    className: 'car-marker',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -15]
   });
   
   return (
@@ -124,6 +139,26 @@ function MapPanel({ waypoints, selectedOrder }) {
                     <div className="text-gray-500">{selectedOrder?.dropoff_address || 'Unknown location'}</div>
                     <div className="text-xs text-gray-400 mt-1">
                       {selectedOrder?.tracking_code}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+            
+            {/* Draw driver car icon if shipment is in transit and location is available */}
+            {selectedOrder?.status === 'in_transit' && driverCoords && (
+              <Marker position={driverCoords} icon={carIcon}>
+                <Popup>
+                  <div className="text-sm">
+                    <div className="font-medium" style={{ color: shipmentColor.primary }}>
+                      🚗 Driver Location
+                    </div>
+                    <div className="text-gray-500">{driverLocation?.address || 'Current location'}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {driverLocation?.vehicle_plate || 'Unknown vehicle'}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Updated: {driverLocation?.recorded_at ? new Date(driverLocation.recorded_at).toLocaleTimeString() : 'Unknown'}
                     </div>
                   </div>
                 </Popup>

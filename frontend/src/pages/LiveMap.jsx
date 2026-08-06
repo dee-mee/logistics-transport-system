@@ -88,6 +88,7 @@ const LiveMap = () => {
     const colors = {
       'available': '#10B981', // green
       'in_use': '#3B82F6', // blue
+      'on_trip': '#EF4444', // red for busy on trip
       'maintenance': '#F59E0B', // yellow
       'out_of_service': '#EF4444', // red
     };
@@ -181,6 +182,7 @@ const LiveMap = () => {
                         <option value="">All Status</option>
                         <option value="available">Available</option>
                         <option value="in_use">In Use</option>
+                        <option value="on_trip">On Trip (Busy)</option>
                         <option value="maintenance">Maintenance</option>
                         <option value="out_of_service">Out of Service</option>
                       </select>

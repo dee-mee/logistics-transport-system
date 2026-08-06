@@ -58,6 +58,7 @@ const LiveFleetMap = () => {
     const colors = {
       'available': '#10B981',
       'in_use': '#3B82F6',
+      'on_trip': '#EF4444', // red for busy on trip
       'maintenance': '#F59E0B',
       'out_of_service': '#EF4444',
     };

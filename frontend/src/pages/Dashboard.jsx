@@ -33,6 +33,7 @@ export default function Dashboard() {
   // Map and trip details
   const [waypoints, setWaypoints] = useState(null);
   const [tripDetails, setTripDetails] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null);
   
   // Transactions data
   const [transactions, setTransactions] = useState([]);
@@ -226,18 +227,26 @@ export default function Dashboard() {
       setMapLoading(true);
       setWaypoints(null);
       setTripDetails(null);
+      setDriverLocation(null);
 
       console.log('Fetching trip details for order:', orderId);
 
-      const [shipmentRes, eventsRes] = await Promise.all([
+      const [shipmentRes, eventsRes, locationRes] = await Promise.all([
         client.get(`/orders/shipments/${orderId}/`),
         client.get(`/tracking/status-events/?shipment=${orderId}`),
+        client.get(`/tracking/location-pings/latest_for_shipment/?shipment_id=${orderId}`),
       ]);
 
       console.log('Shipment response:', shipmentRes.data);
       console.log('Events response:', eventsRes.data);
+      console.log('Driver location response:', locationRes.data);
 
       if (shipmentRes.data) setTripDetails(shipmentRes.data);
+      
+      // Set driver location if available and shipment is in transit
+      if (locationRes.data?.data && shipmentRes.data?.status === 'in_transit') {
+        setDriverLocation(locationRes.data.data);
+      }
 
       const shipment = shipmentRes.data;
       const pickup = shipment?.pickup_lat && shipment?.pickup_lng
@@ -440,6 +449,7 @@ export default function Dashboard() {
             <MapPanel 
               waypoints={waypoints} 
               selectedOrder={allShipments.find(o => o.id === selectedOrderId)}
+              driverLocation={driverLocation}
             />
           )}
         </div>

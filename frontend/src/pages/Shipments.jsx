@@ -270,6 +270,16 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
     return activeShipments.find(s => s.driver === driverId && s.id !== shipment.id);
   };
 
+  // Helper to check if a vehicle is busy
+  const isVehicleBusy = (vehicleId) => {
+    return activeShipments.some(s => s.vehicle === vehicleId && s.id !== shipment.id);
+  };
+
+  // Helper to get the busy vehicle's active shipment
+  const getVehicleActiveShipment = (vehicleId) => {
+    return activeShipments.find(s => s.vehicle === vehicleId && s.id !== shipment.id);
+  };
+
   async function addEvent(e) {
     e.preventDefault();
     if (!newStatus) return;
@@ -333,10 +343,13 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
       setEvents([...events]);
     } catch (err) {
       console.error(err);
-      // Handle busy driver error specifically
+      // Handle busy driver/vehicle error specifically
       if (err.response?.data?.driver_status === 'busy') {
         const activeShipments = err.response.data.active_shipments?.join(', ') || '';
         alert(`Driver is busy with active shipment(s): ${activeShipments}`);
+      } else if (err.response?.data?.vehicle_status === 'busy') {
+        const activeShipments = err.response.data.active_shipments?.join(', ') || '';
+        alert(`Vehicle is busy with active shipment(s): ${activeShipments}`);
       } else {
         alert(err.response?.data?.error || "Failed to assign driver");
       }
@@ -453,12 +466,25 @@ function ShipmentDrawer({ shipment, onClose, onUpdated }) {
                       className="w-full border border-line rounded-lg px-3 py-2 text-sm"
                     >
                       <option value="">Select vehicle (optional)…</option>
-                      {vehicles.map((vehicle) => (
-                        <option key={vehicle.id} value={vehicle.id}>
-                          {vehicle.plate_number} - {vehicle.make} {vehicle.model}
-                        </option>
-                      ))}
+                      {vehicles.map((vehicle) => {
+                        const busy = isVehicleBusy(vehicle.id);
+                        return (
+                          <option 
+                            key={vehicle.id} 
+                            value={vehicle.id}
+                            disabled={busy}
+                          >
+                            {vehicle.plate_number} - {vehicle.make} {vehicle.model}
+                            {busy ? ' - Busy' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
+                    {selectedVehicle && isVehicleBusy(selectedVehicle) && (
+                      <div className="text-xs text-rust bg-rust-light rounded-lg px-3 py-2">
+                        This vehicle is currently busy with shipment: {getVehicleActiveShipment(selectedVehicle)?.tracking_code}
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-medium text-ink-700 mb-1.5">Scheduled Start Time (optional)</label>
                       <input 

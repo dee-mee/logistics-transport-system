@@ -180,6 +180,21 @@ class ShipmentViewSet(viewsets.ModelViewSet):
                 # Ensure vehicle belongs to the same organization
                 if vehicle.organization != request.user.current_organization:
                     return Response({'error': 'Vehicle does not belong to your organization'}, status=status.HTTP_403_FORBIDDEN)
+                
+                # Check if vehicle already has active shipments (assigned or in_transit)
+                active_vehicle_shipments = Shipment.objects.filter(
+                    vehicle=vehicle,
+                    organization=request.user.current_organization,
+                    status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+                ).exclude(id=shipment.id)
+                
+                if active_vehicle_shipments.exists():
+                    print(f"Vehicle is busy with active shipments: {list(active_vehicle_shipments.values_list('tracking_code', flat=True))}")
+                    return Response({
+                        'error': f'Vehicle {vehicle.plate_number} is already assigned to an active shipment',
+                        'vehicle_status': 'busy',
+                        'active_shipments': list(active_vehicle_shipments.values_list('tracking_code', flat=True))
+                    }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 vehicle = None
             

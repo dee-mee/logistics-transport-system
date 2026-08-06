@@ -162,6 +162,19 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
             # Get the driver's assigned vehicle (if any)
             vehicle = getattr(driver_profile, 'assigned_vehicle', None)
             
+            if not vehicle:
+                return Response(
+                    {'error': 'No vehicle assigned to driver. Please assign a vehicle before reporting location.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if driver has an active shipment to associate with this location
+            from orders.models import Shipment
+            active_shipment = Shipment.objects.filter(
+                driver=driver_profile,
+                status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+            ).first()
+            
             # Create a location ping
             location_ping = VehicleLocationPing.objects.create(
                 organization=request.user.current_organization,
@@ -170,7 +183,8 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
                 lat=lat,
                 lng=lng,
                 address=address,
-                status_update='available'  # Default status when not on trip
+                trip_id=active_shipment.id if active_shipment else None,
+                status_update='on_trip' if active_shipment else 'available'
             )
             
             return Response({
@@ -213,6 +227,33 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
+    def latest_for_shipment(self, request):
+        """Get latest location ping for a specific shipment."""
+        shipment_id = request.query_params.get('shipment_id')
+        if not shipment_id:
+            return Response(
+                {'error': 'shipment_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Get the latest location ping for this shipment
+            latest_location = VehicleLocationPing.objects.filter(
+                trip_id=shipment_id
+            ).order_by('-recorded_at').first()
+            
+            if not latest_location:
+                return Response({'data': None}, status=status.HTTP_200_OK)
+            
+            serializer = VehicleLocationPingSerializer(latest_location)
+            return Response({'data': serializer.data}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': f'Error fetching latest location: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
     def live_map(self, request):
         """Get data for live map display."""
         queryset = self.get_queryset()
@@ -223,9 +264,27 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
             if location.vehicle_id not in vehicle_locations:
                 vehicle_locations[location.vehicle_id] = location
         
+        # Check which vehicles are currently on active trips
+        from orders.models import Shipment
+        active_shipments = Shipment.objects.filter(
+            status__in=[Shipment.Status.ASSIGNED, Shipment.Status.IN_TRANSIT]
+        ).select_related('vehicle', 'driver')
+        
+        # Create a set of vehicle IDs that are on active trips
+        busy_vehicle_ids = set()
+        for shipment in active_shipments:
+            if shipment.vehicle_id:
+                busy_vehicle_ids.add(shipment.vehicle_id)
+        
         # Format for live map
         map_data = []
         for location in vehicle_locations.values():
+            # Determine actual status based on whether vehicle is on active trip
+            if location.vehicle_id in busy_vehicle_ids:
+                actual_status = 'on_trip'  # Vehicle is busy on a trip
+            else:
+                actual_status = location.vehicle.status  # Use vehicle's stored status
+            
             map_data.append({
                 'vehicle_id': location.vehicle_id,
                 'plate_number': location.vehicle.plate_number,
@@ -233,7 +292,7 @@ class VehicleLocationPingViewSet(viewsets.ModelViewSet):
                 'lng': float(location.lng),
                 'speed_kmh': float(location.speed_kmh) if location.speed_kmh else None,
                 'heading_deg': float(location.heading_deg) if location.heading_deg else None,
-                'status': location.vehicle.status,
+                'status': actual_status,
                 'driver_name': location.driver.user.get_full_name() if location.driver else None,
                 'last_update': location.recorded_at.isoformat(),
                 'vehicle_type': location.vehicle.vehicle_type,
